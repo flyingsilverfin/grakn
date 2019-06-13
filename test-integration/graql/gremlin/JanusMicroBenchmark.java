@@ -348,6 +348,56 @@ public class JanusMicroBenchmark {
         System.out.println("Mean, stddev time to batch retrieve using id(id1, id2...): " + meanDuration2 + ", " + stddev2);
     }
 
+
+    @Test
+    public void testBatchIdVersusMultipleIdLookup() {
+        List<Long> durations1 = new LinkedList<>();
+        List<Long> durations2 = new LinkedList<>();
+        int trails = 10;
+
+        System.out.println("Initialising and populating keyspace...");
+        SessionImpl session1 = newSession();
+        populateKeypsace(session1, 5000, 5, 2);
+        Map<String, String> idNameMap = getIdNameMap(session1);
+        List<String> janusIds1 = idNameMap.keySet().stream().map(id -> Schema.elementId(ConceptId.of(id))).collect(Collectors.toList());
+        System.out.println("Finished creating keysace... ");
+        for (int i = 0; i < trails; i++) {
+            try (TransactionOLTP tx = session1.transaction().read()) {
+                long totalDuration = 0L;
+                for (String janusId : janusIds1.stream().skip(i*100).limit(20).collect(Collectors.toList())) {
+                    List<TraversalMetrics> vertex = tx.getTinkerTraversal().V(janusId).profile().toList();
+                    long duration = vertex.get(0).getDuration(TimeUnit.MICROSECONDS);
+                    totalDuration += duration;
+                }
+                System.out.println("Sequential IDs lookup: " + totalDuration);
+                durations1.add(totalDuration);
+            }
+            confuse(session1);
+        }
+
+        System.out.println("Initialising and populating keyspace...");
+        SessionImpl session2 = newSession();
+        populateKeypsace(session2, 5000, 5, 2);
+        Map<String, String> idNameMap2 = getIdNameMap(session2);
+        List<String> janusIds2 = idNameMap2.keySet().stream().map(id -> Schema.elementId(ConceptId.of(id))).collect(Collectors.toList());
+        System.out.println("Finished creating keysace...");
+        for (int i = 0; i < trails; i++) {
+            try (TransactionOLTP tx = session2.transaction().read()) {
+                List<TraversalMetrics> altNotShardMetrics = tx.getTinkerTraversal().V(janusIds2.stream().skip(i*100).limit(20).collect(Collectors.toList())).profile().toList();
+                System.out.println("Batch vertex by Janus IDs retrieval: " + altNotShardMetrics.get(0).getDuration(TimeUnit.MICROSECONDS));
+                durations2.add(altNotShardMetrics.get(0).getDuration(TimeUnit.MICROSECONDS));
+            }
+            confuse(session2);
+        }
+
+        double meanDuration1 = mean(durations1);
+        double stddev1 = stddev(durations1);
+        double meanDuration2 = mean(durations2);
+        double stddev2 = stddev(durations2);
+
+        System.out.println("Mean, stddev time to batch retrieve using id(id1), then id(id2) ...): " + meanDuration1 + ", " + stddev1);
+        System.out.println("Mean, stddev time to batch retrieve using id(id1, id2...): " + meanDuration2 + ", " + stddev2);
+    }
     /**
      * Cost of looking up sequences of native V().id(x) versus property lookup
      */
@@ -359,7 +409,7 @@ public class JanusMicroBenchmark {
 
         System.out.println("Initialising and populating keyspace...");
         SessionImpl session1 = newSession();
-        populateKeypsace(session1, 8000, 5, 2);
+        populateKeypsace(session1, 5000, 5, 2);
         Map<String, String> idNameMap = getIdNameMap(session1);
         List<String> indexedNames = idNameMap.values().stream().map(name -> Schema.BaseType.ATTRIBUTE.name() + "-name-" + name).collect(Collectors.toList());
         System.out.println("Finished creating keysace...");
@@ -378,7 +428,7 @@ public class JanusMicroBenchmark {
 
         System.out.println("Initialising and populating keyspace...");
         SessionImpl session2 = newSession();
-        populateKeypsace(session2, 8000, 5, 2);
+        populateKeypsace(session2, 5000, 5, 2);
         Map<String, String> idNameMap2 = getIdNameMap(session2);
         List<String> janusIds = idNameMap2.keySet().stream().map(id -> Schema.elementId(ConceptId.of(id))).collect(Collectors.toList());
         System.out.println("Finished creating keysace...");
