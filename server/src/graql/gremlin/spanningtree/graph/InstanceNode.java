@@ -19,6 +19,7 @@
 package grakn.core.graql.gremlin.spanningtree.graph;
 
 import grakn.core.concept.Label;
+import grakn.core.concept.type.SchemaConcept;
 import grakn.core.server.kb.Schema;
 import grakn.core.server.session.TransactionOLTP;
 
@@ -42,12 +43,23 @@ public class InstanceNode extends Node {
     @Override
     public long matchingElementsEstimate(TransactionOLTP tx) {
         if (cachedMatchingElementsEstimate == null) {
+
             if (instanceTypeLabels.isEmpty()) {
                 cachedMatchingElementsEstimate = tx.session().keyspaceStatistics().count(tx, Schema.MetaSchema.THING.getLabel());
             } else {
                 long count = 0;
                 for (Label possibleLabel : instanceTypeLabels) {
-                    count += tx.session().keyspaceStatistics().count(tx, possibleLabel);
+
+                    SchemaConcept schemaConcept = tx.getSchemaConcept(possibleLabel);
+
+                    long conceptCount = tx.session().keyspaceStatistics().count(tx, possibleLabel);
+                    long matchingRules = schemaConcept.thenRules().count();
+
+                    if (matchingRules > 0) {
+                        conceptCount *= Math.max(1L, conceptCount) + matchingRules;
+                    }
+
+                    count += conceptCount;
                 }
                 cachedMatchingElementsEstimate = count;
             }
