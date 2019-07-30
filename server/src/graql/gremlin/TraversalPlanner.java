@@ -127,7 +127,7 @@ public class TraversalPlanner {
                 // collect the mapping from directed edge back to fragments -- inverse operation of creating virtual middle nodes
                 Map<Node, Map<Node, Fragment>> middleNodeFragmentMapping = virtualMiddleNodeToFragmentMapping(connectedFragments, allQueryGraphNodes);
 
-                OptimalTreeTraversal optimalTreeTraversal = new OptimalTreeTraversal(tx, connectedNodes, allQueryGraphNodes, subgraphArborescence, middleNodeFragmentMapping, 100);
+                OptimalTreeTraversal optimalTreeTraversal = new OptimalTreeTraversal(tx, connectedNodes, allQueryGraphNodes, subgraphArborescence, middleNodeFragmentMapping, 10);
                 List<Fragment> subplan = optimalTreeTraversal.traverse();
 
 //                List<Fragment> subplan = GreedyTreeTraversal.greedyTraversal(subgraphArborescence, allQueryGraphNodes, middleNodeFragmentMapping);
