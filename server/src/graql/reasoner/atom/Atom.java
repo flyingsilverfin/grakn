@@ -228,12 +228,14 @@ public abstract class Atom extends AtomicBase {
      */
     public Stream<InferenceRule> getApplicableRules() {
         if (applicableRules == null) {
+            long start = System.currentTimeMillis();
             applicableRules = new HashSet<>();
             getPotentialRules()
                     .map(rule -> tx().ruleCache().getRule(rule, () -> new InferenceRule(rule, tx())))
                     .filter(this::isRuleApplicable)
                     .map(r -> r.rewrite(this))
                     .forEach(applicableRules::add);
+            tx().profiler().updateTime(getClass().getSimpleName() + "::getApplicableRules", System.currentTimeMillis() - start);
         }
         return applicableRules.stream();
     }

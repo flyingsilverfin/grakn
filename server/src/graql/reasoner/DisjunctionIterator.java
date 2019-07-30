@@ -48,9 +48,15 @@ public class DisjunctionIterator extends ReasonerQueryIterator {
     private Iterator<ConceptMap> answerIterator;
     private final TransactionOLTP tx;
 
+    private final long startTime;
+
+    private final MatchClause matchClause;
+
     private static final Logger LOG = LoggerFactory.getLogger(DisjunctionIterator.class);
 
     public DisjunctionIterator(MatchClause matchClause, TransactionOLTP tx) {
+        this.matchClause = matchClause;
+        this.startTime = System.currentTimeMillis();
         this.tx = tx;
         int conjunctionIterSpanId = ServerTracing.startScopedChildSpan("DisjunctionIterator() create DNF, conjunction iterator");
 
@@ -91,6 +97,10 @@ public class DisjunctionIterator extends ReasonerQueryIterator {
             answerIterator = conjunctionIterator(conjIterator.next(), tx);
             if (answerIterator.hasNext()) return true;
         }
+
+        //LOG.debug("Query: " + matchClause);
+        //tx.profiler().updateTime("Query execution time", System.currentTimeMillis() - startTime);
+        //tx.profiler().logTimes();
         return false;
     }
 }

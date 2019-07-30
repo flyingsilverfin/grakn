@@ -51,13 +51,19 @@ public abstract class AtomicQueryCacheBase<
     final private Set<QE> completeEntries = new HashSet<>();
 
     public boolean isDBComplete(ReasonerAtomicQuery query){
-        return dbCompleteEntries.contains(queryToKey(query))
+        long start = System.currentTimeMillis();
+        boolean complete = dbCompleteEntries.contains(queryToKey(query))
                 || dbCompleteQueries.contains(query);
+        query.tx().profiler().updateTime(getClass().getSimpleName() + "::isDBComplete", System.currentTimeMillis() - start);
+        return complete;
     }
 
     public boolean isComplete(ReasonerAtomicQuery query){
-        return completeEntries.contains(queryToKey(query))
+        long start = System.currentTimeMillis();
+        boolean complete = completeEntries.contains(queryToKey(query))
                 || completeQueries.contains(query);
+        query.tx().profiler().updateTime(getClass().getSimpleName() + "::isComplete", System.currentTimeMillis() - start);
+        return complete;
     }
 
     public void ackCompleteness(ReasonerAtomicQuery query) {

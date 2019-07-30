@@ -20,16 +20,23 @@ package grakn.core.graql.reasoner;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import grakn.client.GraknClient;
+import grakn.core.api.Transaction;
 import grakn.core.concept.Concept;
 import grakn.core.concept.answer.ConceptMap;
 import grakn.core.concept.thing.Attribute;
 import grakn.core.concept.type.AttributeType;
 import grakn.core.concept.type.RelationType;
+import grakn.core.graql.gremlin.GraqlTraversal;
+import grakn.core.graql.gremlin.TraversalPlanner;
+import grakn.core.graql.reasoner.plan.GraqlTraversalPlanner;
 import grakn.core.rule.GraknTestServer;
 import grakn.core.server.session.SessionImpl;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.Graql;
+import graql.lang.pattern.Pattern;
 import graql.lang.query.GraqlGet;
+import graql.lang.query.GraqlQuery;
 import graql.lang.statement.Variable;
 import java.util.List;
 import java.util.Set;
@@ -67,6 +74,104 @@ public class ReasoningIT {
     //as specified in the respective comments below.
 
     @Test
+    public void test3(){
+        try(SessionImpl session = server.sessionWithNewKeyspace()) {
+            loadFromFileAndCommit(resourcePath, "benchmark.gql", session);
+            GraknClient graknClient = new GraknClient(server.grpcUri().toString());
+            GraknClient.Session remoteSession = graknClient.session(session.keyspace().name());
+
+            try (Transaction tx = remoteSession.transaction().write()) {
+                //for(int i = 0 ; i < 50; i++) {
+                   // System.out.println("i = " + i);
+                    String queryString = "match (Q-from: $x, Q-to: $y) isa Q;" +
+                                    "$x has index 'a';" +
+                                    "$y has index 'a" + "46" + "';" +
+                                    "get;";
+                    GraqlGet query = Graql.parse(queryString).asGet();
+                List<ConceptMap> answers = tx.execute(query);
+                System.out.println("answers: " + answers.size() + " depth: " + answers.iterator().next().explanation().explicit().size());
+                //}
+            }
+        }
+    }
+
+    @Test
+    public void test2(){
+        try(SessionImpl session = server.sessionWithNewKeyspace()) {
+            try (TransactionOLTP tx = session.transaction().write()) {
+                tx.execute(Graql.parse("define\n" +
+                        "person sub entity,\n" +
+                        "  has name,\n" +
+                        "  plays owner;\n" +
+
+                        "owned-object sub entity,\n" +
+                        "  has name,\n" +
+                        "  plays owned-object-test;\n" +
+
+                        "ownership sub relation,\n" +
+                        "  relates owner,\n" +
+                        "  relates owned-object-test;\n" +
+
+                        "name sub attribute,\n" +
+                        "  datatype string;").asDefine());
+                tx.commit();
+            }
+            try (TransactionOLTP tx = session.transaction().write()) {
+                tx.execute(Graql.parse("undefine owned-object sub entity;").asUndefine());
+                tx.execute(Graql.parse("define\n" +
+                        "ownership sub relation,\n" +
+                        "  relates owner,\n" +
+                        "  relates owned-object;" +
+
+                        "object sub entity,\n" +
+                        "  has name,\n" +
+                        "  plays owned-object;\n").asDefine());
+                tx.commit();
+            }
+            try (TransactionOLTP tx = session.transaction().write()) {
+                System.out.println();
+            }
+
+
+        }
+    }
+
+    @Test
+    public void test() {
+        try (SessionImpl session = server.sessionWithNewKeyspace()) {
+            loadFromFileAndCommit(resourcePath, "implicitRole.gql", session);
+            try (TransactionOLTP tx = session.transaction().write()) {
+                tx.stream(Graql.parse("match $relationship isa @has-job-title; get;").asGet())
+                        .map(ans -> ans.get("relationship"))
+                        .forEach(concept -> {
+                            Pattern pattern = Graql.parsePattern(
+                                    "{$relationship id " + concept.id().getValue() + ";" +
+                                            "$relationship($role: $x) isa @has-job-title;};");
+                            GraqlTraversal traversal = TraversalPlanner.createTraversal(pattern, tx);
+                            List<ConceptMap> answers = tx.execute(Graql.match(pattern));
+
+                            Pattern pattern2 = Graql.parsePattern(
+                                    "{$relationship id " + concept.id().getValue() + ";" +
+                                            "$relationship isa @has-job-title;};");
+                            GraqlTraversal traversal2 = TraversalPlanner.createTraversal(pattern2, tx);
+                            List<ConceptMap> answers22 = tx.execute(Graql.match(pattern2));
+
+                            List<ConceptMap> answers3 = tx.execute(Graql.parse("match " +
+                                    "$relationship id " + concept.id().getValue() + ";" +
+                                    "$relationship($role: $x);" +
+                                    "$relationship isa @has-job-title; get $x, $role;").asGet());
+
+                            //TraversalPlanner.createTraversal()
+                            List<ConceptMap> answers2 = tx.execute(Graql.parse("match " +
+                                    "$relationship id " + concept.id().getValue() + ";" +
+                                    "$relationship($role: $x); get;").asGet());
+                            System.out.println();
+                        });
+            }
+        }
+    }
+
+    @Test
     public void whenMaterialising_duplicatesAreNotCreated(){
         try(SessionImpl session = server.sessionWithNewKeyspace()) {
             loadFromFileAndCommit(resourcePath, "duplicateMaterialisation.gql", session);
@@ -77,6 +182,7 @@ public class ReasoningIT {
                                 "get;")
                         .asGet());
                 assertEquals(25, answers.size());
+
             }
         }
     }

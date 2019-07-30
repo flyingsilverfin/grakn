@@ -80,15 +80,11 @@ public abstract class Predicate<T> extends AtomicBase {
 
     @Override
     public final boolean equals(Object o) {
-        if (o == this) {
-            return true;
-        }
-        if (o instanceof Predicate) {
-            Predicate that = (Predicate) o;
-            return (this.getVarName().equals(that.getVarName()))
-                    && (this.getPredicate().equals(that.getPredicate()));
-        }
-        return false;
+        if (o == this) return true;
+        if (!(o instanceof Predicate)) return false;
+        Predicate that = (Predicate) o;
+            return this.getVarName().equals(that.getVarName())
+                    && this.getPredicate().equals(that.getPredicate());
     }
 
     @Override

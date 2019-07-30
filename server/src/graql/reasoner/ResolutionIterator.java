@@ -46,15 +46,19 @@ public class ResolutionIterator extends ReasonerQueryIterator {
     private final ResolvableQuery query;
     private final Set<ConceptMap> answers = new HashSet<>();
     private final Set<ReasonerAtomicQuery> subGoals;
+
     private final Stack<ResolutionState> states = new Stack<>();
 
     private ConceptMap nextAnswer = null;
+
+    private final long startTime;
 
     private static final Logger LOG = LoggerFactory.getLogger(ResolutionIterator.class);
 
     public ResolutionIterator(ResolvableQuery q, Set<ReasonerAtomicQuery> subGoals){
         this.query = q;
         this.subGoals = subGoals;
+        this.startTime = System.currentTimeMillis();
         states.push(query.resolutionState(new ConceptMap(), new UnifierImpl(), null, subGoals));
     }
 
@@ -68,6 +72,7 @@ public class ResolutionIterator extends ReasonerQueryIterator {
                 return state.getSubstitution();
             }
 
+            query.tx().profiler().updateCallCount(getClass().getSimpleName()+"::visitedStates");
             ResolutionState newState = state.generateChildState();
             if (newState != null) {
                 if (!state.isAnswerState()) states.push(state);
@@ -118,6 +123,9 @@ public class ResolutionIterator extends ReasonerQueryIterator {
 
         subGoals.forEach(query.tx().queryCache()::ackCompleteness);
         query.tx().queryCache().propagateAnswers();
+
+        query.tx().profiler().updateTime("executeTime", System.currentTimeMillis() - startTime);
+        query.tx().profiler().logTimes();
 
         return false;
     }

@@ -18,20 +18,28 @@
 
 package grakn.core.graql.reasoner.plan;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import grakn.core.graql.reasoner.ResolutionIterator;
 import grakn.core.graql.reasoner.atom.Atom;
 import grakn.core.graql.reasoner.query.ReasonerQueries;
 import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
 import grakn.core.server.session.TransactionOLTP;
 
+import graql.lang.statement.Variable;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.Stack;
 import java.util.stream.Collectors;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -48,6 +56,25 @@ public class ResolutionQueryPlan {
 
     public ResolutionQueryPlan(ReasonerQueryImpl query){
         this.queryPlan = queryPlan(query);
+        validatePlan(query);
+    }
+
+    private void validatePlan(ReasonerQueryImpl query){
+        List<ReasonerQueryImpl> atomList = queries();
+        boolean queryDisconnected = query.selectAtoms()
+                .anyMatch(Atom::isDisconnected);
+
+        if (!queryDisconnected) {
+            Iterator<ReasonerQueryImpl> iterator = atomList.iterator();
+            Set<Variable> vars = new HashSet<>(iterator.next().getVarNames());
+            while (iterator.hasNext()) {
+                ReasonerQueryImpl next = iterator.next();
+                Set<Variable> varNames = next.getVarNames();
+                boolean planDisconnected = Sets.intersection(varNames, vars).isEmpty();
+                //Preconditions.checkState(!planDisconnected, "Disconnected query plan produced:\n{}", this);
+                vars.addAll(varNames);
+            }
+        }
     }
 
     @Override
@@ -68,6 +95,7 @@ public class ResolutionQueryPlan {
 
         ImmutableList<Atom> plan = resolutionPlan.plan();
         TransactionOLTP tx = query.tx();
+
         LinkedList<Atom> atoms = new LinkedList<>(plan);
         List<ReasonerQueryImpl> queries = new LinkedList<>();
 

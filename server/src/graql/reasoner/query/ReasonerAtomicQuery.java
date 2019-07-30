@@ -23,6 +23,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import grakn.core.concept.answer.ConceptMap;
+import grakn.core.concept.type.SchemaConcept;
+import grakn.core.graql.reasoner.ResolutionIterator;
 import grakn.core.graql.reasoner.atom.Atom;
 import grakn.core.graql.reasoner.atom.Atomic;
 import grakn.core.graql.reasoner.atom.AtomicFactory;
@@ -94,7 +96,12 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
     }
 
     @Override
-    public String toString(){ return getAtoms(Atom.class).map(Atomic::toString).collect(Collectors.joining(", "));}
+    public String toString(){
+        SchemaConcept type = getAtom().getSchemaConcept();
+        long ruleCount = type != null ? type.thenRules().count() : 0;
+        return getAtoms(Atom.class).map(Atomic::toString).collect(Collectors.joining(", ")) +
+                (ruleCount != 0? "(*" + ruleCount + ")" : "");
+    }
 
     @Override
     public boolean isAtomic(){ return true;}
@@ -181,10 +188,18 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
      * @return stream of materialised answers
      */
     public Stream<ConceptMap> materialise(ConceptMap answer) {
+        tx().profiler().updateCallCount(getClass().getSimpleName() + "::materialise");
         return this.withSubstitution(answer)
                 .getAtom()
                 .materialise()
                 .map(ans -> ans.explain(answer.explanation()));
+    }
+
+    @Override
+    public Stream<ConceptMap> resolve(Set<ReasonerAtomicQuery> subGoals){
+        return isRuleResolvable()?
+                new ResolutionIterator(this, subGoals).hasStream() :
+                tx().queryCache().getAnswerStream(this);
     }
 
     @Override
@@ -202,6 +217,7 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
 
     @Override
     public Iterator<ResolutionState> innerStateIterator(AnswerPropagatorState parent, Set<ReasonerAtomicQuery> visitedSubGoals) {
+        long start = System.currentTimeMillis();
         Pair<Stream<ConceptMap>, MultiUnifier> cacheEntry = tx().queryCache().getAnswerStreamWithUnifier(this);
         Iterator<AnswerState> dbIterator = cacheEntry.getKey()
                 .map(a -> a.explain(a.explanation().setPattern(this.getPattern())))
@@ -211,16 +227,26 @@ public class ReasonerAtomicQuery extends ReasonerQueryImpl {
         Iterator<ResolutionState> dbCompletionIterator =
                 Iterators.singletonIterator(new CacheCompletionState(this, new ConceptMap(), null));
 
-        boolean visited = visitedSubGoals.contains(this);
+        Iterator<ResolutionState> subGoalIterator;
         //if this is ground and exists in the db then do not resolve further
+        long start2 = System.currentTimeMillis();
+        boolean visited = visitedSubGoals.contains(this);
+        if (!visited) visitedSubGoals.add(this);
+        tx().profiler().updateTime(getClass().getSimpleName() + "::visitedSubGoals.contains", System.currentTimeMillis() - start2);
         boolean doNotResolveFurther = visited
                 || tx().queryCache().isComplete(this)
                 || (this.isGround() && dbIterator.hasNext());
-        Iterator<ResolutionState> subGoalIterator = !doNotResolveFurther?
-                ruleStateIterator(parent, visitedSubGoals) :
-                Collections.emptyIterator();
+
+        if(doNotResolveFurther){
+            subGoalIterator = Collections.emptyIterator();
+        } else {
+            tx().profiler().updateTime(getClass().getSimpleName() + "::queryStateIterator", System.currentTimeMillis() - start);
+            subGoalIterator = ruleStateIterator(parent, visitedSubGoals);
+        }
 
         if (!visited) visitedSubGoals.add(this);
+
+        tx().profiler().updateCallCount(getClass().getSimpleName() + "::visitedSubGoals");
         return Iterators.concat(dbIterator, dbCompletionIterator, subGoalIterator);
     }
 

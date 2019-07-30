@@ -109,19 +109,24 @@ public class QueryExecutor {
 
             if (!infer) {
                 // time to create the traversal plan
-
+                long start2 = System.currentTimeMillis();
                 int createTraversalSpanId = ServerTracing.startScopedChildSpanWithParentContext("QueryExecutor.match create traversal", createStreamSpanId);
 
+                long start3 = System.currentTimeMillis();
                 GraqlTraversal graqlTraversal = TraversalPlanner.createTraversal(matchClause.getPatterns(), transaction);
+                transaction.profiler().updateTime(getClass().getSimpleName() + "::noInferGraqlTraversal", System.currentTimeMillis() - start3);
 
                 ServerTracing.closeScopedChildSpan(createTraversalSpanId);
 
                 // time to convert plan into a answer stream
                 int traversalToStreamSpanId = ServerTracing.startScopedChildSpanWithParentContext("QueryExecutor.match traversal to stream", createStreamSpanId);
 
+                long start = System.currentTimeMillis();
                 answerStream = traversal(matchClause.getPatterns().variables(), graqlTraversal);
+                transaction.profiler().updateTime(getClass().getSimpleName() + "::noInferAnswerStream", System.currentTimeMillis() - start);
 
                 ServerTracing.closeScopedChildSpan(traversalToStreamSpanId);
+                transaction.profiler().updateTime(getClass().getSimpleName() + "::noInferHandling", System.currentTimeMillis() - start2);
             } else {
 
                 int disjunctionSpanId = ServerTracing.startScopedChildSpanWithParentContext("QueryExecutor.match disjunction iterator", createStreamSpanId);
@@ -141,7 +146,7 @@ public class QueryExecutor {
 
     //TODO this should go into MatchClause
     private void validateClause(MatchClause matchClause) {
-
+        long start = System.currentTimeMillis();
         Disjunction<Conjunction<Pattern>> negationDNF = matchClause.getPatterns().getNegationDNF();
 
         // assert none of the statements have no properties (eg. `match $x; get;`)
@@ -167,6 +172,7 @@ public class QueryExecutor {
                 throw GraqlSemanticException.usingNegationWithReasoningOff(matchClause.getPatterns());
             }
         }
+        transaction.profiler().updateTime(getClass().getSimpleName() + "::validateClause", System.currentTimeMillis() - start);
     }
 
     private void validateVarVarComparisons(Disjunction<Conjunction<Pattern>> negationDNF) {

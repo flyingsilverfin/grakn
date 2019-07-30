@@ -112,10 +112,16 @@ public class ConceptUtils {
      * @return true if type sets are disjoint - it's possible to find a disjoint pair among parent and child set
      */
     public static boolean areDisjointTypeSets(Set<? extends SchemaConcept>  parentTypes, Set<? extends SchemaConcept> childTypes, boolean direct) {
-        return childTypes.isEmpty() && !parentTypes.isEmpty()
+        long start = System.currentTimeMillis();
+        boolean areDisjoint = childTypes.isEmpty() && !parentTypes.isEmpty()
                 || parentTypes.stream().anyMatch(parent -> childTypes.stream()
                 .anyMatch(child -> ConceptUtils.areDisjointTypes(parent, child, direct)));
+        disjointSetTime += System.currentTimeMillis() - start;
+        return areDisjoint;
     }
+
+    public static long disjointSetTime = 0;
+    public static long disjointTypeTime = 0;
 
     /** determines disjointness of parent-child types, parent defines the bound on the child
      * @param parent {@link SchemaConcept}
@@ -126,8 +132,17 @@ public class ConceptUtils {
      * - false if parent non-null and child null - parents defines a constraint to satisfy
      */
     public static boolean areDisjointTypes(SchemaConcept parent, SchemaConcept child, boolean direct) {
-        return parent != null && child == null || !typesCompatible(parent, child, direct) && !typesCompatible(child, parent, direct);
+        long start = System.currentTimeMillis();
+        boolean disjoint = parent != null && child == null || !typesCompatible(parent, child, direct) && !typesCompatible(child, parent, direct);
+        disjointTypeTime += System.currentTimeMillis() - start;
+        return disjoint;
     }
+
+    public static long mergeTime = 0;
+    public static long setTime = 0;
+    public static long setEqualityTime = 0;
+    public static long varIntersectionTime = 0;
+
 
     /**
      * Computes dependent concepts of a thing - concepts that need to be persisted if we persist the provided thing.
@@ -162,8 +177,10 @@ public class ConceptUtils {
         if (answerB.isEmpty()) return answerA;
         if (answerA.isEmpty()) return answerB;
 
+        long start = System.currentTimeMillis();
         Sets.SetView<Variable> varUnion = Sets.union(answerA.vars(), answerB.vars());
         Set<Variable> varIntersection = Sets.intersection(answerA.vars(), answerB.vars());
+
         Map<Variable, Concept> entryMap = Sets.union(
                 answerA.map().entrySet(),
                 answerB.map().entrySet()
@@ -171,6 +188,10 @@ public class ConceptUtils {
                 .stream()
                 .filter(e -> !varIntersection.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        setTime += System.currentTimeMillis() - start;
+        long start2 = System.currentTimeMillis();
+
         varIntersection
                 .forEach(var -> {
                     Concept concept = answerA.get(var);
@@ -192,7 +213,21 @@ public class ConceptUtils {
                         }
                     }
                 });
-        if (!entryMap.keySet().equals(varUnion)) return new ConceptMap();
-        return new ConceptMap(entryMap, answerA.explanation());
+
+        varIntersectionTime += System.currentTimeMillis() - start2;
+        long start3 = System.currentTimeMillis();
+        boolean keySetsEqual = entryMap.keySet().equals(varUnion);
+        setEqualityTime += System.currentTimeMillis() - start3;
+
+        if (!keySetsEqual){
+            mergeTime += System.currentTimeMillis() - start;
+            return new ConceptMap();
+        }
+
+        ConceptMap conceptMap = new ConceptMap(entryMap, answerA.explanation());
+        mergeTime += System.currentTimeMillis() - start;
+        return conceptMap;
     }
+
+
 }

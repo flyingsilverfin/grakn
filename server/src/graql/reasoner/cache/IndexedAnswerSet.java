@@ -108,10 +108,15 @@ public class IndexedAnswerSet implements AnswerSet{
         return new HashSet<>(indexedAnswers.values());
     }
 
+    public static long addTime = 0;
+
     @Override
     //add answer to all indices
     public boolean add(ConceptMap answer) {
-        return add(answer, answer.project(index.vars()));
+        long start = System.currentTimeMillis();
+        boolean add = add(answer, answer.project(index.vars()));
+        addTime += System.currentTimeMillis() - start;
+        return add;
     }
 
     //add answer with specific index

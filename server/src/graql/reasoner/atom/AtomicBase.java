@@ -97,7 +97,10 @@ public abstract class AtomicBase implements Atomic {
 
     @Override
     public Pattern getCombinedPattern(){
-        return createCombinedPattern();
+        long start = System.currentTimeMillis();
+        Pattern combinedPattern = createCombinedPattern();
+        tx().profiler().updateTime(getClass().getSimpleName() + "::getCombinedPattern", System.currentTimeMillis() - start);
+        return combinedPattern;
     }
 
     @Override

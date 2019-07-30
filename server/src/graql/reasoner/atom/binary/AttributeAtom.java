@@ -405,6 +405,7 @@ public abstract class AttributeAtom extends Binary{
 
     @Override
     public Stream<ConceptMap> materialise(){
+        long start = System.currentTimeMillis();
         ConceptMap substitution = getParentQuery().getSubstitution();
         AttributeTypeImpl attributeType = AttributeTypeImpl.from(getSchemaConcept().asAttributeType());
 
@@ -412,6 +413,7 @@ public abstract class AttributeAtom extends Binary{
         Variable resourceVariable = getAttributeVariable();
 
         //if the attribute already exists, only attach a new link to the owner, otherwise create a new attribute
+        long start2 = System.currentTimeMillis();
         Attribute attribute = null;
         if(this.isValueEquality()){
             Object value = Iterables.getOnlyElement(getMultiPredicate()).getPredicate().value();
@@ -430,6 +432,7 @@ public abstract class AttributeAtom extends Binary{
                 }
             }
         }
+        tx().profiler().updateTime(getClass().getSimpleName() + "::materialise::findAttribute", System.currentTimeMillis() - start2);
 
         if (attribute != null) {
             ConceptMap answer = new ConceptMap(ImmutableMap.of(
@@ -443,6 +446,7 @@ public abstract class AttributeAtom extends Binary{
             }
             return Stream.of(answer);
         }
+        tx().profiler().updateTime(getClass().getSimpleName() + "::materialise", System.currentTimeMillis() - start);
         return Stream.empty();
     }
 

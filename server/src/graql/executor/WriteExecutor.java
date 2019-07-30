@@ -279,8 +279,10 @@ public class WriteExecutor {
 
         Map<Variable, Concept> namedConcepts = Maps.filterKeys(allConcepts.build(), Variable::isReturned);
 
+        long start = System.currentTimeMillis();
         //mark all inferred concepts that are required for the insert for persistence explicitly
         markConceptsForPersistence(namedConcepts.values());
+        transaction.profiler().updateTime(getClass().getSimpleName() + "::persistenceMarking", System.currentTimeMillis() - start);
 
         return new ConceptMap(namedConcepts);
     }

@@ -76,8 +76,11 @@ public class IdPredicate extends Predicate<ConceptId> {
     public boolean isAlphaEquivalent(Object obj) {
         if (obj == null || this.getClass() != obj.getClass()) return false;
         if (obj == this) return true;
+        long start = System.currentTimeMillis();
         Predicate a2 = (Predicate) obj;
-        return this.getPredicateValue().equals(a2.getPredicateValue());
+        boolean equals = this.getPredicateValue().equals(a2.getPredicateValue());
+        tx().profiler().updateTime(getClass().getSimpleName() + "::isAlphaEquivalent", System.currentTimeMillis() - start);
+        return equals;
     }
 
     @Override

@@ -96,7 +96,10 @@ public interface ResolvableQuery extends ReasonerQuery {
      */
     @CheckReturnValue
     default GraqlGet getQuery() {
-        return Graql.match(getPattern()).get();
+        long start = System.currentTimeMillis();
+        GraqlGet.Unfiltered unfiltered = Graql.match(getPattern()).get();
+        tx().profiler().updateTime(getClass().getSimpleName()+ "::getQuery", System.currentTimeMillis() - start);
+        return unfiltered;
     }
 
     /**

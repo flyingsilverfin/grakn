@@ -40,7 +40,7 @@ public class RuleScalingIT {
 
     @Test
     public void ruleScaling() {
-        final int N = 60;
+        final int N = 100;
         final int populatedChains = 3;
         SessionImpl session = server.sessionWithNewKeyspace();
 
@@ -157,6 +157,7 @@ public class RuleScalingIT {
                     "(someRole: $anotherLink, anotherRole: $index) isa indexingRelation;" +
                     "get;";
             List<ConceptMap> answers = executeQuery(query, tx);
+            tx.profiler().print();
             assertEquals(populatedChains, answers.size());
         }
         session.close();

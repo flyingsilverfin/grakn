@@ -201,13 +201,23 @@ public class ReasonerQueryImpl implements ResolvableQuery {
     public boolean equals(Object obj) {
         if (obj == null || this.getClass() != obj.getClass()) return false;
         if (obj == this) return true;
+        long start = System.currentTimeMillis();
+        tx().profiler().updateCallCount(getClass().getSimpleName()+"::equalsCount");
         ReasonerQueryImpl q2 = (ReasonerQueryImpl) obj;
-        return this.isEquivalent(q2);
+        boolean equivalent = this.isEquivalent(q2);
+        if (equivalent){
+            tx().profiler().updateCallCount(getClass().getSimpleName()+"::equalsTrueCount");
+        }
+        tx().profiler().updateTime(getClass().getSimpleName() + "::equalsTime", System.currentTimeMillis() - start);
+        return equivalent;
     }
 
     @Override
     public int hashCode() {
-        return ReasonerQueryEquivalence.AlphaEquivalence.hash(this);
+        long start = System.currentTimeMillis();
+        int hash = ReasonerQueryEquivalence.AlphaEquivalence.hash(this);
+        tx().profiler().updateTime(getClass().getSimpleName() + "::hashCode", System.currentTimeMillis() - start);
+        return hash;
     }
 
     @Override
@@ -221,12 +231,14 @@ public class ReasonerQueryImpl implements ResolvableQuery {
     @Override
     public Conjunction<Pattern> getPattern() {
         if (pattern == null) {
+            long start = System.currentTimeMillis();
             pattern = Graql.and(
                     getAtoms().stream()
                             .map(Atomic::getCombinedPattern)
                             .flatMap(p -> p.statements().stream())
                             .collect(Collectors.toSet())
             );
+            tx().profiler().updateTime(getClass().getSimpleName() + "::getPattern", System.currentTimeMillis() - start);
         }
         return pattern;
     }
@@ -240,7 +252,10 @@ public class ReasonerQueryImpl implements ResolvableQuery {
 
     @Override
     public boolean isRuleResolvable() {
-        return selectAtoms().anyMatch(Atom::isRuleResolvable);
+        long start = System.currentTimeMillis();
+        boolean b = selectAtoms().anyMatch(Atom::isRuleResolvable);
+        tx().profiler().updateTime(getClass().getSimpleName() + "::isRuleResolvable", System.currentTimeMillis() - start);
+        return b;
     }
 
     /**
@@ -309,9 +324,11 @@ public class ReasonerQueryImpl implements ResolvableQuery {
     @Override
     public Set<Variable> getVarNames() {
         if (varNames == null) {
+            long start = System.currentTimeMillis();
             Set<Variable> vars = new HashSet<>();
             getAtoms().forEach(atom -> vars.addAll(atom.getVarNames()));
             varNames = vars;
+            tx().profiler().updateTime(getClass().getSimpleName() + "::getVarNames", System.currentTimeMillis() - start);
         }
         return varNames;
     }
@@ -374,7 +391,7 @@ public class ReasonerQueryImpl implements ResolvableQuery {
 
     @Override
     public ImmutableSetMultimap<Variable, Type> getVarTypeMap(boolean inferTypes) {
-        if (!inferTypes) return ImmutableSetMultimap.copyOf(getVarTypeMap(getAtoms(IsaAtomBase.class)));
+        if (!inferTypes) return ImmutableSetMultimap.copyOf(getVarTypeMap(getAtoms(Atom.class).map(Atom::toIsaAtom)));
         return getVarTypeMap();
     }
 
@@ -391,7 +408,7 @@ public class ReasonerQueryImpl implements ResolvableQuery {
         return ImmutableSetMultimap.copyOf(
                 getVarTypeMap(
                         Stream.concat(
-                                getAtoms(IsaAtomBase.class),
+                                getAtoms(Atom.class).map(Atom::toIsaAtom).map(IsaAtomBase.class::cast),
                                 inferEntityTypes(sub)
                         )
                 )
@@ -456,6 +473,7 @@ public class ReasonerQueryImpl implements ResolvableQuery {
      * @return substitution obtained from all id predicates (including internal) in the query
      */
     public ConceptMap getSubstitution(){
+        long start = System.currentTimeMillis();
         if (substitution == null) {
             Set<Variable> varNames = getVarNames();
             Set<IdPredicate> predicates = getAtoms(IsaAtomBase.class)
@@ -473,6 +491,7 @@ public class ReasonerQueryImpl implements ResolvableQuery {
             });
             substitution = new ConceptMap(answerMap);
         }
+        tx().profiler().updateTime(getClass().getSimpleName() + "::getSubstitution", System.currentTimeMillis() - start);
         return substitution;
     }
 
@@ -602,27 +621,45 @@ public class ReasonerQueryImpl implements ResolvableQuery {
 
     @Override
     public Iterator<ResolutionState> innerStateIterator(AnswerPropagatorState parent, Set<ReasonerAtomicQuery> subGoals){
+        long start = System.currentTimeMillis();
         Iterator<AnswerState> dbIterator;
         Iterator<AnswerPropagatorState> subGoalIterator;
 
         if(!this.isRuleResolvable()) {
+            long start2 = System.currentTimeMillis();
             Set<Type> queryTypes = new HashSet<>(this.getVarTypeMap().values());
+            tx.profiler().updateTime(getClass().getSimpleName() + "::queryStateIterator::queryTypes", System.currentTimeMillis() - start2);
+
+            long start3 = System.currentTimeMillis();
             boolean fruitless = tx.ruleCache().absentTypes(queryTypes);
+            tx.profiler().updateTime(getClass().getSimpleName() + "::queryStateIterator::fruitless", System.currentTimeMillis() - start3);
+
             if (fruitless) dbIterator = Collections.emptyIterator();
             else {
+                long start4 = System.currentTimeMillis();
                 dbIterator = tx.stream(getQuery(), false)
                         .map(ans -> ans.explain(new JoinExplanation(this.getPattern(), this.splitToPartialAnswers(ans))))
                         .map(ans -> new AnswerState(ans, parent.getUnifier(), parent))
                         .iterator();
+
+                tx.profiler().updateCallCount("conjQueriesExecuted");
+                tx.profiler().updateTime(getClass().getSimpleName() + "::queryStateIterator::dbIterator", System.currentTimeMillis() - start4);
             }
             subGoalIterator = Collections.emptyIterator();
         } else {
             dbIterator = Collections.emptyIterator();
 
+            long start2 = System.currentTimeMillis();
             ResolutionQueryPlan queryPlan = new ResolutionQueryPlan(this);
+            tx.profiler().updateTime(getClass().getSimpleName() + "::queryStateIterator::queryPlan", System.currentTimeMillis() - start2);
+
+            long start3 = System.currentTimeMillis();
             subGoalIterator = Iterators.singletonIterator(new CumulativeState(queryPlan.queries(), new ConceptMap(), parent.getUnifier(), parent, subGoals));
+            tx.profiler().updateTime(getClass().getSimpleName() + "::queryStateIterator::subGoalIterator", System.currentTimeMillis() - start3);
         }
-        return Iterators.concat(dbIterator, subGoalIterator);
+        Iterator<ResolutionState> concat = Iterators.concat(dbIterator, subGoalIterator);
+        tx.profiler().updateTime(getClass().getSimpleName() + "::queryStateIterator", System.currentTimeMillis() - start);
+        return concat;
     }
 
     /**
