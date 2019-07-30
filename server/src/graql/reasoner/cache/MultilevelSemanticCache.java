@@ -125,7 +125,8 @@ public class MultilevelSemanticCache extends SemanticCache<Equivalence.Wrapper<R
     @Override
     protected Stream<ConceptMap> entryToAnswerStream(CacheEntry<ReasonerAtomicQuery, IndexedAnswerSet> entry) {
         return entry.cachedElement().get(entry.query().getAnswerIndex()).stream()
-                .sorted(Comparator.comparing(ans -> ans.explanation().explicit().size()));
+                //.sorted(Comparator.comparing(ans -> ans.explanation().explicit().size()))
+        ;
     }
 
     @Override
@@ -141,7 +142,8 @@ public class MultilevelSemanticCache extends SemanticCache<Equivalence.Wrapper<R
                         .apply(answerIndex)
                         .flatMap(index -> answers.get(index).stream())
                         .flatMap(multiUnifier::apply)
-                        .sorted(Comparator.comparing(ans -> ans.explanation().explicit().size())),
+                        //.sorted(Comparator.comparing(ans -> ans.explanation().explicit().size()))
+                ,
                 multiUnifier
         );
     }

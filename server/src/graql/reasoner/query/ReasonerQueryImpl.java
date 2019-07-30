@@ -391,7 +391,7 @@ public class ReasonerQueryImpl implements ResolvableQuery {
 
     @Override
     public ImmutableSetMultimap<Variable, Type> getVarTypeMap(boolean inferTypes) {
-        if (!inferTypes) return ImmutableSetMultimap.copyOf(getVarTypeMap(getAtoms(Atom.class).map(Atom::toIsaAtom)));
+        if (!inferTypes) return ImmutableSetMultimap.copyOf(getVarTypeMap(getAtoms(IsaAtomBase.class)));
         return getVarTypeMap();
     }
 
@@ -408,7 +408,7 @@ public class ReasonerQueryImpl implements ResolvableQuery {
         return ImmutableSetMultimap.copyOf(
                 getVarTypeMap(
                         Stream.concat(
-                                getAtoms(Atom.class).map(Atom::toIsaAtom).map(IsaAtomBase.class::cast),
+                                getAtoms(IsaAtomBase.class),
                                 inferEntityTypes(sub)
                         )
                 )

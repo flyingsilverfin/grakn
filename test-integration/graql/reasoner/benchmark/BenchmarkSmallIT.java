@@ -18,32 +18,22 @@
 
 package grakn.core.graql.reasoner.benchmark;
 
-import grakn.client.GraknClient;
-import grakn.core.api.Transaction;
 import grakn.core.concept.Concept;
-import grakn.core.concept.answer.Answer;
 import grakn.core.concept.answer.ConceptMap;
 import grakn.core.concept.thing.Entity;
 import grakn.core.concept.type.EntityType;
 import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
-import grakn.core.graql.reasoner.atom.binary.RelationAtom;
-import grakn.core.graql.reasoner.cache.IndexedAnswerSet;
-import grakn.core.graql.reasoner.cache.SemanticCache;
 import grakn.core.graql.reasoner.graph.DiagonalGraph;
 import grakn.core.graql.reasoner.graph.LinearTransitivityMatrixGraph;
 import grakn.core.graql.reasoner.graph.PathTreeGraph;
 import grakn.core.graql.reasoner.graph.TransitivityChainGraph;
 import grakn.core.graql.reasoner.graph.TransitivityMatrixGraph;
-import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
-import grakn.core.graql.reasoner.unifier.UnifierImpl;
 import grakn.core.rule.GraknTestServer;
-import grakn.core.server.kb.concept.ConceptUtils;
 import grakn.core.server.session.SessionImpl;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.Graql;
 import graql.lang.query.GraqlGet;
-import graql.lang.query.GraqlQuery;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
 import org.junit.ClassRule;
@@ -59,61 +49,6 @@ public class BenchmarkSmallIT {
     @ClassRule
     public static final GraknTestServer server = new GraknTestServer();
 
-
-    @Test
-    public void test(){
-        GraknClient graknClient = new GraknClient("localhost:48555");
-        GraknClient.Session remoteSession = graknClient.session("s_acadc9f5c73741329a75e0c40b5aa9c4");
-        try(Transaction tx = remoteSession.transaction().read()) {
-            long start = System.currentTimeMillis();
-            //(5 seconds, 388.673 milliseconds)\
-            GraqlQuery query = Graql.parse(
-                    "match " +
-                            "$taxpayer isa User;" +
-                            "(filer: $taxpayer, declaration: $declaration) isa files_tax_declaration;" +
-                            "(declaration: $declaration, form: $form) isa materializes_in_form;" +
-                            "$field (form: $form, field: $field_value);" +
-                            "$field isa has_form_field; $field has identifier $field_id;" +
-                            "$field has index_group $index_group;" +
-                            "(field_relationship: $field, indexable: $index_instance) isa is_indexed_by;" +
-                            "get; limit 1;");
-            List<? extends Answer> answers = tx.execute(query);
-            System.out.println("query answers: " + answers.size() + " time : " + (System.currentTimeMillis() - start));
-        }
-        /*
-        try(Transaction tx = remoteSession.transaction().read()) {
-            long start = System.currentTimeMillis();
-            //(5 seconds, 388.673 milliseconds)\
-            GraqlQuery query1 = Graql.parse(
-                    "match " +
-                            "$fiscal_domicile_relation (citizen: $taxpayer, place_of_fiscal_domicile: $fiscal_domicile);" +
-                            "$fiscal_domicile_relation isa has_fiscal_domicile_at;" +
-                            "$fiscal_domicile_relation has is_fiscal_domicile_at_the_end_of_tax_year == false;" +
-                            "$taxpayer isa User;" +
-                            "(filer: $taxpayer, declaration: $declaration) isa files_tax_declaration;" +
-                            "(declaration: $declaration, form: $form) isa materializes_in_form;" +
-                            "$fiscal_domicile has city_code $city_code;" +
-                            "get ;");
-            List<? extends Answer> answers = tx.execute(query1);
-            System.out.println("query 1 answers: " + answers.size() + " time : " + (System.currentTimeMillis() - start));
-        }
-        try(Transaction tx = remoteSession.transaction().read()) {
-            //(2 seconds, 157.848 milliseconds)
-            long start = System.currentTimeMillis();
-            GraqlQuery query2 = Graql.parse(
-                    "match " +
-                            "$fiscal_domicile_relation (citizen: $taxpayer, place_of_fiscal_domicile: $fiscal_domicile);" +
-                            "$fiscal_domicile_relation isa has_fiscal_domicile_at; $fiscal_domicile_relation has is_fiscal_domicile_at_the_end_of_tax_year == false;" +
-                            "$taxpayer isa User;" +
-                            "(filer: $taxpayer, declaration: $declaration) isa files_tax_declaration;" +
-                            "(declaration: $declaration, form: $form) isa materializes_in_form; $fiscal_domicile has city_code $city_code;" +
-                            "get;");
-            List<? extends Answer> answers2 = tx.execute(query2);
-            System.out.println("query 2 answers: " + answers2.size() + " time : " + (System.currentTimeMillis() - start));
-        }
-
-         */
-    }
 
     /**
      * Executes a scalability test defined in terms of the number of rules in the system. Creates a simple rule chain:
@@ -241,17 +176,6 @@ public class BenchmarkSmallIT {
         session.close();
     }
 
-    public void printTimes(){
-        System.out.println("UnifierImpl::apply: " + UnifierImpl.unifyTime);
-        System.out.println("IndexedAnswerSet:add " + IndexedAnswerSet.addTime);
-        System.out.println("ConceptUtils::merge: " + ConceptUtils.mergeTime);
-        System.out.println("    ConceptUtils::setTime: " + ConceptUtils.setTime);
-        System.out.println("    ConceptUtils::setEqualityTime: " + ConceptUtils.setEqualityTime);
-        System.out.println("    ConceptUtils::varIntersectionTime: " + ConceptUtils.varIntersectionTime);
-        System.out.println("ConceptUtils::disjointSet: " + ConceptUtils.disjointSetTime);
-        System.out.println("ConceptUtils::disjointType: " + ConceptUtils.disjointTypeTime);
-    }
-
     /**
      * single-rule transitivity test with initial data arranged in a chain of length N
      * The rule is given as:
@@ -280,18 +204,15 @@ public class BenchmarkSmallIT {
 
         String queryString = "match (Q-from: $x, Q-to: $y) isa Q; get;";
         GraqlGet query = Graql.parse(queryString).asGet();
+
         String queryString2 = "match (Q-from: $x, Q-to: $y) isa Q;$x has index 'a'; get;";
         GraqlGet query2 = Graql.parse(queryString2).asGet();
 
         assertEquals(executeQuery(query, tx, "full").size(), answers);
-        //executeQuery(query.match().get().limit(answers), tx, "limit " + answers);
-        tx.profiler().print();
-        printTimes();
-        System.out.println();
+        assertEquals(executeQuery(query2, tx, "With specific resource").size(), N);
 
-        //assertEquals(executeQuery(query2, tx, "With specific resource").size(), N);
-        //executeQuery(query.match().get().limit(limit), tx, "limit " + limit);
-        //executeQuery(query2.match().get().limit(limit), tx, "limit " + limit);
+        executeQuery(query.match().get().limit(limit), tx, "limit " + limit);
+        executeQuery(query2.match().get().limit(limit), tx, "limit " + limit);
         tx.close();
         session.close();
     }
@@ -331,34 +252,27 @@ public class BenchmarkSmallIT {
         //results @N = 30 216225    ?       ?      ?     30 s
         //results @N = 35 396900   ?        ?      ?     76 s
         transitivityMatrixGraph.load(N, N);
-        for (int i = 0; i < 1 ; i++) {
-            try (TransactionOLTP tx = session.transaction().write()) {
+        TransactionOLTP tx = session.transaction().write();
+        
 
-                //full result
-                String queryString = "match $r (Q-from: $x, Q-to: $y) isa Q; get;";
-                GraqlGet query = Graql.parse(queryString).asGet();
+        //full result
+        String queryString = "match (Q-from: $x, Q-to: $y) isa Q; get;";
+        GraqlGet query = Graql.parse(queryString).asGet();
 
-                //with specific resource
-                String queryString2 = "match (Q-from: $x, Q-to: $y) isa Q;$x has index 'a'; get;";
-                GraqlGet query2 = Graql.parse(queryString2).asGet();
+        //with specific resource
+        String queryString2 = "match (Q-from: $x, Q-to: $y) isa Q;$x has index 'a'; get;";
+        GraqlGet query2 = Graql.parse(queryString2).asGet();
 
-                //with substitution
-                Concept id = tx.execute(Graql.parse("match $x has index 'a'; get;").asGet()).iterator().next().get("x");
-                String queryString3 = "match (Q-from: $x, Q-to: $y) isa Q;$x id " + id.id().getValue() + "; get;";
-                GraqlGet query3 = Graql.parse(queryString3).asGet();
+        //with substitution
+        Concept id = tx.execute(Graql.parse("match $x has index 'a'; get;").asGet()).iterator().next().get("x");
+        String queryString3 = "match (Q-from: $x, Q-to: $y) isa Q;$x id " + id.id().getValue() + "; get;";
+        GraqlGet query3 = Graql.parse(queryString3).asGet();
 
-                //executeQuery(query, tx, "full");
-                //executeQuery(query2, tx, "With specific resource");
-                //executeQuery(query3, tx, "Single argument bound");
-                int answersNo = 3025;
-                List<ConceptMap> answers = executeQuery(query.match().get().limit(answersNo), tx, "limit " + answersNo);
-
-                System.out.println("visitedSubGoals: " + tx.profiler().getCount("ReasonerAtomicQuery::visitedSubGoals"));
-                tx.profiler().print();
-                printTimes();
-                System.out.println();
-            }
-        }
+        executeQuery(query, tx, "full");
+        executeQuery(query2, tx, "With specific resource");
+        executeQuery(query3, tx, "Single argument bound");
+        executeQuery(query.match().get().limit(limit), tx, "limit " + limit);
+        tx.close();
         session.close();
     }
 

@@ -57,24 +57,18 @@ public class TransitivityChainGraph {
         RelationType q = tx.getRelationType("Q");
         Thing aInst = putEntityWithResource(tx, "a", tx.getEntityType("entity2"), key);
         ConceptId[] aInstanceIds = new ConceptId[n];
-
-        System.out.println("$i isa entity2, has index 'a';");
         for(int i = 0 ; i < n ;i++) {
             aInstanceIds[i] = putEntityWithResource(tx, "a" + i, aEntity, key).id();
-            //System.out.println("$i" + i + " isa a-entity, has index 'a" + i +"';");
         }
 
         q.create()
                 .assign(qfrom, aInst)
                 .assign(qto, tx.getConcept(aInstanceIds[0]));
 
-        //System.out.println("(Q-from: $i, Q-to: $i0) isa Q;");
-
         for(int i = 0 ; i < n - 1 ; i++) {
             q.create()
                     .assign(qfrom, tx.getConcept(aInstanceIds[i]))
                     .assign(qto, tx.getConcept(aInstanceIds[i+1]));
-            //System.out.println("(Q-from: $i" + i +", Q-to: $i" + (i+1) + ") isa Q;");
         }
     }
 
