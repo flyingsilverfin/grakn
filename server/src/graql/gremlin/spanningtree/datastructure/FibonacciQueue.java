@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,6 +18,7 @@
 
 package grakn.core.graql.gremlin.spanningtree.datastructure;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 
 import java.util.AbstractQueue;
@@ -33,7 +34,7 @@ import java.util.function.Function;
 public class FibonacciQueue<E> extends AbstractQueue<E> {
     private final FibonacciHeap<E, E> heap;
     private final Function<FibonacciHeap<E, ?>.Entry, E> getValue = input -> {
-        assert input != null;
+        Preconditions.checkNotNull(input);
         return input.value;
     };
 

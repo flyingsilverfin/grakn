@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,7 +19,6 @@
 package grakn.core.graql.reasoner.plan;
 
 import com.google.common.base.Equivalence;
-import grakn.core.graql.reasoner.query.ReasonerQueryEquivalence;
 import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
 
 import java.util.ArrayList;
@@ -30,7 +29,7 @@ import java.util.stream.Collectors;
 /**
  *
  * <p>
- * Helper class for lists of {@link ReasonerQueryImpl} queries with equality comparison {@link ReasonerQueryEquivalence}.
+ * Helper class for lists of ReasonerQueryImpl queries with equality comparison ReasonerQueryEquivalence.
  * </p>
  *
  *

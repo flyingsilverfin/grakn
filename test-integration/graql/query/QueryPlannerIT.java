@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -35,19 +35,19 @@ import grakn.core.server.session.SessionImpl;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.pattern.Pattern;
 import graql.lang.statement.Statement;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static graql.lang.Graql.and;
 import static graql.lang.Graql.var;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class QueryPlannerIT {
@@ -300,40 +300,61 @@ public class QueryPlannerIT {
                 var().rel("role1", x).rel("role2", z),
                 var().rel("role1", y).rel("role2", z)
         );
+        // repeat planning step to handle nondeterminism, we may pick different starting points each time
         for (int i = 0; i < 20; i++) {
-            // ensure that any (for now) chosen randomly starting point still generates full traversals with all required fragments
             ImmutableList<Fragment> plan = getPlan(pattern);
             assertEquals(6, plan.size());
         }
     }
 
     @Test
-    @Ignore
+    public void indexedFragmentsAreListedFirst() {
+        Pattern pattern = and(
+                x.isa(veryRelated),
+                x.isa(thingy2),
+                y.isa(thingy4),
+                var().rel(x).rel(y),
+                y.has(resourceType, "someString"));
+
+        List<Fragment> plan = getPlan(pattern);
+        boolean priorFragmentHasFixedCost = true;
+        for (Fragment fragment : plan) {
+            if (!fragment.hasFixedFragmentCost()) {
+                priorFragmentHasFixedCost = false;
+            } else {
+                // if the current fragment is fixed cost
+                // and the prior one was, it's ok.
+                // if it wasn't, fail the test
+                assertTrue(priorFragmentHasFixedCost);
+            }
+        }
+    }
+
+    @Test
     public void avoidImplicitTypes() {
         /*
-        TODO when we disable mandatory Reification, we can re-enable this test and ensure it works
-
         Idea is: originally, the query planner could start at high priority starting nodes (non-implicit labels),
         low priority starting nodes (implicit labels which may represent edges instead of vertices), or worst case any
         valid node.
 
-        This test ensures that we don't use implicit nodes as starting points if it can be avoided. Since we appear
-        to always reify, this test is irrelevant & relevant query planner code (`lowPriorityStartingNodes`) has been removed
-         */
-        Pattern pattern;
-        ImmutableList<Fragment> plan;
-
-        pattern = and(
+        This test ensures that we don't use implicit nodes as starting points if it can be avoided.
+        In general implicit relations are non-reified and they correspond to an edge.
+        */
+        Pattern pattern = and(
                 x.isa(thingy2),
                 y.isa(thingy4),
                 var().rel(x).rel(y));
-        plan = getPlan(pattern);
+
+        ImmutableList<Fragment> plan = getPlan(pattern);
         assertEquals(3L, plan.stream().filter(LabelFragment.class::isInstance).count());
-        String relation = plan.get(1).start().name();
+        List<Fragment> nonLabelFragments = plan.stream().filter(f -> !(f instanceof LabelFragment)).collect(Collectors.toList());
+        //first fragment after label fragments is an isa fragment so we skip it
+        Fragment firstRolePlayerFragment = nonLabelFragments.get(1);
+        String relationStartVarName = firstRolePlayerFragment.start().name();
 
         // should start from relation
-        assertNotEquals(relation, x.var().name());
-        assertNotEquals(relation, y.var().name());
+        assertNotEquals(relationStartVarName, x.var().name());
+        assertNotEquals(relationStartVarName, y.var().name());
 
         pattern = and(
                 x.isa(resourceType),
@@ -341,11 +362,12 @@ public class QueryPlannerIT {
                 var().rel(x).rel(y));
         plan = getPlan(pattern);
         assertEquals(3L, plan.stream().filter(LabelFragment.class::isInstance).count());
-        relation = plan.get(1).end().name();
+        String relationEndVarName = firstRolePlayerFragment.end().name();
 
         // should start from a role player
-        assertTrue(relation.equals(x.var().name()) || relation.equals(y.var().name()));
-        assertTrue(plan.get(3) instanceof OutIsaFragment);
+        assertTrue(relationEndVarName.equals(x.var().name()) || relationEndVarName.equals(y.var().name()));
+        //check next fragment after first role player fragment
+        assertTrue(nonLabelFragments.get(nonLabelFragments.indexOf(firstRolePlayerFragment)+1) instanceof OutIsaFragment);
     }
 
     @Test
@@ -394,7 +416,7 @@ public class QueryPlannerIT {
                 z.isa(thingy3),
                 var().rel(x).rel(y).rel(z));
         plan = getPlan(pattern);
-        assertEquals(x.var(), plan.get(1).end());
+        assertEquals(x.var(), plan.get(3).end());
         assertEquals(3L, plan.stream().filter(fragment -> fragment instanceof NeqFragment).count());
 
         //TODO: should uncomment the following after updating cost of out-isa fragment
@@ -409,7 +431,7 @@ public class QueryPlannerIT {
                 y.isa(thingy2),
                 var().rel(x).rel(y));
         plan = getPlan(pattern);
-        assertEquals(x.var(), plan.get(2).end());
+        assertEquals(x.var(), plan.get(3).end());
 
         pattern = and(
                 x.isa(thingy),
@@ -417,7 +439,7 @@ public class QueryPlannerIT {
                 z.isa(thingy3),
                 var().rel(x).rel(y).rel(z));
         plan = getPlan(pattern);
-        assertEquals(x.var(), plan.get(2).end());
+        assertEquals(x.var(), plan.get(4).end());
 
         pattern = and(
                 x.isa(superType),
@@ -440,7 +462,7 @@ public class QueryPlannerIT {
                 z.isa(thingy3),
                 var().rel(x).rel(y).rel(z));
         plan = getPlan(pattern);
-        assertEquals(y.var(), plan.get(1).end());
+        assertEquals(y.var(), plan.get(3).end());
 
         pattern = and(
                 x.isa(thingy1),
@@ -448,7 +470,7 @@ public class QueryPlannerIT {
                 z.isa(thingy3),
                 var().rel(x).rel(y).rel(z));
         plan = getPlan(pattern);
-        assertEquals(x.var(), plan.get(1).end());
+        assertEquals(x.var(), plan.get(3).end());
 
         tx.shard(tx.getEntityType(thingy1).id());
         tx.shard(tx.getEntityType(thingy1).id());
@@ -460,7 +482,7 @@ public class QueryPlannerIT {
                 z.isa(thingy3),
                 var().rel(x).rel(y).rel(z));
         plan = getPlan(pattern);
-        assertEquals(y.var(), plan.get(1).end());
+        assertEquals(y.var(), plan.get(3).end());
 
         pattern = and(
                 x.isa(thingy1),
@@ -468,7 +490,7 @@ public class QueryPlannerIT {
                 z.isa(thingy3),
                 var().rel(x).rel(y).rel(z));
         plan = getPlan(pattern);
-        assertEquals(y.var(), plan.get(1).end());
+        assertEquals(y.var(), plan.get(3).end());
     }
 
     private ImmutableList<Fragment> getPlan(Pattern pattern) {

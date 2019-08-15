@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -26,7 +26,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import grakn.core.concept.ConceptId;
 import grakn.core.graql.gremlin.fragment.Fragment;
-import grakn.core.server.kb.Schema;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.statement.Variable;
 import org.apache.tinkerpop.gremlin.process.traversal.Traversal;
@@ -43,7 +42,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static grakn.core.common.util.CommonUtil.toImmutableSet;
 import static java.util.stream.Collectors.joining;
 
 /**
@@ -59,7 +57,7 @@ public abstract class GraqlTraversal {
     private static final double COST_NEW_TRAVERSAL = Math.log1p(NUM_VERTICES_ESTIMATE);
 
     static GraqlTraversal create(Set<? extends List<Fragment>> fragments) {
-        ImmutableSet<ImmutableList<Fragment>> copy = fragments.stream().map(ImmutableList::copyOf).collect(toImmutableSet());
+        ImmutableSet<ImmutableList<Fragment>> copy = fragments.stream().map(ImmutableList::copyOf).collect(ImmutableSet.toImmutableSet());
         return new AutoValue_GraqlTraversal(copy);
     }
 
@@ -87,18 +85,18 @@ public abstract class GraqlTraversal {
         }
     }
 
-    //       Set of disjunctions
-    //        |
-    //        |           List of fragments in order of execution
-    //        |            |
-    //        V            V
+    //            Set of disjunctions
+    //                |
+    //                |           List of fragments in order of execution
+    //                |             |
+    //                V             V
     public abstract ImmutableSet<ImmutableList<Fragment>> fragments();
 
     /**
      * @param transform map defining id transform var -> new id
      * @return graql traversal with concept id transformed according to the provided transform
      */
-    public GraqlTraversal transform(Map<Variable, ConceptId> transform){
+    public GraqlTraversal transform(Map<Variable, ConceptId> transform) {
         ImmutableList<Fragment> fragments = ImmutableList.copyOf(
                 Iterables.getOnlyElement(fragments()).stream().map(f -> f.transform(transform)).collect(Collectors.toList())
         );
@@ -110,22 +108,14 @@ public abstract class GraqlTraversal {
      */
     private GraphTraversal<Vertex, Map<String, Element>> getConjunctionTraversal(
             TransactionOLTP tx, GraphTraversal<Vertex, Vertex> traversal, Set<Variable> vars,
-            ImmutableList<Fragment> fragmentList
-    ) {
-        GraphTraversal<Vertex, ? extends Element> newTraversal = traversal;
+            ImmutableList<Fragment> fragmentList) {
 
-        // If the first fragment can operate on edges, then we have to navigate all edges as well
-        if (fragmentList.get(0).canOperateOnEdges()) {
-            newTraversal = traversal.union(__.identity(), __.outE(Schema.EdgeLabel.ATTRIBUTE.getLabel()));
-        }
-
-        return applyFragments(tx, vars, fragmentList, newTraversal);
+        return applyFragments(tx, vars, fragmentList, traversal);
     }
 
     private GraphTraversal<Vertex, Map<String, Element>> applyFragments(
             TransactionOLTP tx, Set<Variable> vars, ImmutableList<Fragment> fragmentList,
-            GraphTraversal<Vertex, ? extends Element> traversal
-    ) {
+            GraphTraversal<Vertex, ? extends Element> traversal) {
         Set<Variable> foundVars = new HashSet<>();
 
         // Apply fragments in order into one single traversal

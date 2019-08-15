@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -24,7 +24,7 @@ import grakn.core.graql.reasoner.query.ReasonerAtomicQuery;
 import grakn.core.graql.reasoner.query.ReasonerQueries;
 import grakn.core.graql.reasoner.query.ResolvableQuery;
 import grakn.core.graql.reasoner.unifier.Unifier;
-
+import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -57,24 +57,23 @@ import java.util.Set;
  * @author Kasper Piskorski
  *
  */
-public class CompositeState extends QueryStateBase {
+public class CompositeState extends AnswerPropagatorState<CompositeQuery> {
 
-    private final ResolutionState baseConjunctionState;
-    private boolean visited = false;
-
-    private final CompositeQuery query;
     private final Set<ResolvableQuery> complements;
 
-    public CompositeState(CompositeQuery query, ConceptMap sub, Unifier u, QueryStateBase parent, Set<ReasonerAtomicQuery> subGoals) {
-        super(sub, u, parent, subGoals);
-        this.query = query.withSubstitution(sub);
-        this.baseConjunctionState = query.getConjunctiveQuery().subGoal(getSubstitution(), getUnifier(), this, getVisitedSubGoals());
-        this.complements = query.getComplementQueries();
+    public CompositeState(CompositeQuery query, ConceptMap sub, Unifier u, AnswerPropagatorState parent, Set<ReasonerAtomicQuery> subGoals) {
+        super(query.withSubstitution(sub), sub, u, parent, subGoals);
+        this.complements = getQuery().getComplementQueries();
     }
 
     @Override
     public String toString(){
-        return getClass().getSimpleName() + "@" + Integer.toHexString(hashCode()) + "\n" + query.toString();
+        return getClass().getSimpleName() + "@" + Integer.toHexString(hashCode()) + "\n" + getQuery().toString();
+    }
+
+    @Override
+    Iterator<ResolutionState> generateChildStateIterator() {
+        return getQuery().innerStateIterator(this, getVisitedSubGoals());
     }
 
     @Override
@@ -82,23 +81,14 @@ public class CompositeState extends QueryStateBase {
 
     @Override
     public ResolutionState propagateAnswer(AnswerState state) {
-        ConceptMap answer = state.getAnswer();
+        ConceptMap answer = consumeAnswer(state);
 
         boolean isNegationSatisfied = complements.stream()
                 .map(q -> ReasonerQueries.resolvable(q, answer))
-                .noneMatch(q -> q.resolve(getVisitedSubGoals(), q.requiresReiteration()).findFirst().isPresent());
+                .noneMatch(q -> q.resolve(getVisitedSubGoals()).findFirst().isPresent());
 
         return isNegationSatisfied?
                 new AnswerState(answer, getUnifier(), getParentState()) :
                 null;
-    }
-
-    @Override
-    public ResolutionState generateSubGoal() {
-        if (!visited){
-            visited = true;
-            return baseConjunctionState;
-        }
-        return null;
     }
 }

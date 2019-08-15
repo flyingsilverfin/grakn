@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -29,13 +29,13 @@ import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
 import grakn.core.concept.type.SchemaConcept;
 import grakn.core.concept.type.Type;
-import grakn.core.graql.reasoner.atom.AtomicFactory;
+import grakn.core.graql.executor.property.PropertyExecutor;
 import grakn.core.graql.reasoner.atom.binary.TypeAtom;
 import grakn.core.graql.reasoner.atom.predicate.IdPredicate;
 import grakn.core.graql.reasoner.atom.predicate.ValuePredicate;
 import grakn.core.graql.reasoner.query.ReasonerQuery;
 import grakn.core.graql.reasoner.unifier.Unifier;
-import grakn.core.graql.reasoner.unifier.UnifierComparison;
+import grakn.core.graql.reasoner.unifier.UnifierType;
 import grakn.core.graql.reasoner.utils.conversion.RoleConverter;
 import grakn.core.graql.reasoner.utils.conversion.SchemaConceptConverter;
 import grakn.core.graql.reasoner.utils.conversion.TypeConverter;
@@ -45,10 +45,9 @@ import graql.lang.property.TypeProperty;
 import graql.lang.property.ValueProperty;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
-
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -56,13 +55,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 import static java.util.stream.Collectors.toSet;
 
 /**
  *
  * <p>
- * Utiliy class providing useful functionalities.
+ * Utility class providing useful functionalities.
  * </p>
  *
  *
@@ -90,7 +90,7 @@ public class ReasonerUtils {
      * looks for an appropriate var property with a specified name among the vars and maps it to an IdPredicate,
      * covers both the cases when variable is and isn't user defined
      * @param typeVariable variable name of interest
-     * @param typeVar {@link Statement} to look for in case the variable name is not user defined
+     * @param typeVar Statement to look for in case the variable name is not user defined
      * @param vars VarAdmins to look for properties
      * @param parent reasoner query the mapped predicate should belong to
      * @return mapped IdPredicate
@@ -141,23 +141,26 @@ public class ReasonerUtils {
      * looks for appropriate var properties with a specified name among the vars and maps them to ValuePredicates,
      * covers both the case when variable is and isn't user defined
      * @param valueVariable variable name of interest
-     * @param statement {@link Statement} to look for in case the variable name is not user defined
+     * @param statement Statement to look for in case the variable name is not user defined
      * @param fullContext VarAdmins to look for properties
      * @param parent reasoner query the mapped predicate should belong to
-     * @return stream of mapped ValuePredicates
+     * @return set of mapped ValuePredicates
      */
-    public static Stream<ValuePredicate> getValuePredicates(Variable valueVariable, Statement statement, Set<Statement> fullContext, ReasonerQuery parent){
-        Stream<Statement> context = statement.var().isReturned()?
-                fullContext.stream().filter(v -> v.var().equals(valueVariable)) :
-                Stream.of(statement);
-        Set<ValuePredicate> vps = context
-                .flatMap(v -> v.getProperties(ValueProperty.class)
-                        .map(property -> AtomicFactory.createValuePredicate(property, statement, fullContext, false, false, parent))
+    public static Set<ValuePredicate> getValuePredicates(Variable valueVariable, Statement statement, Set<Statement> fullContext, ReasonerQuery parent){
+        Set<Statement> context = statement.var().isReturned()?
+                fullContext.stream().filter(v -> v.var().equals(valueVariable)).collect(toSet()) :
+                Collections.singleton(statement);
+        return context.stream()
+                .flatMap(s -> s.getProperties(ValueProperty.class)
+                        .map(property ->
+                                PropertyExecutor
+                                        .create(statement.var(), property)
+                                        .atomic(parent, statement, fullContext)
+                        )
                         .filter(ValuePredicate.class::isInstance)
                         .map(ValuePredicate.class::cast)
                 )
                 .collect(toSet());
-        return vps.stream();
     }
 
     /**
@@ -179,12 +182,12 @@ public class ReasonerUtils {
 
     /**
      * NB: assumes MATCH semantics - all types and their subs are considered
-     * compute the map of compatible {@link RelationType}s for a given set of {@link Type}s
+     * compute the map of compatible RelationTypes for a given set of Types
      * (intersection of allowed sets of relation types for each entry type) and compatible role types
-     * @param types for which the set of compatible {@link RelationType}s is to be computed
-     * @param schemaConceptConverter converter between {@link SchemaConcept} and relation type-role entries
+     * @param types for which the set of compatible RelationTypes is to be computed
+     * @param schemaConceptConverter converter between SchemaConcept and relation type-role entries
      * @param <T> type generic
-     * @return map of compatible {@link RelationType}s and their corresponding {@link Role}s
+     * @return map of compatible RelationTypes and their corresponding Roles
      */
     public static <T extends SchemaConcept> Multimap<RelationType, Role> compatibleRelationTypesWithRoles(Set<T> types, SchemaConceptConverter<T> schemaConceptConverter) {
         Multimap<RelationType, Role> compatibleTypes = HashMultimap.create();
@@ -200,12 +203,12 @@ public class ReasonerUtils {
 
     /**
      * NB: assumes MATCH semantics - all types and their subs are considered
-     * @param parentRole parent {@link Role}
-     * @param parentType parent {@link Type}
-     * @param entryRoles entry set of possible {@link Role}s
-     * @return set of playable {@link Role}s defined by type-role parent combination, parent role assumed as possible
+     * @param parentRole parent Role
+     * @param parentType parent Type
+     * @param entryRoles entry set of possible Roles
+     * @return set of playable Roles defined by type-role parent combination, parent role assumed as possible
      */
-    public static Set<Role> compatibleRoles(Role parentRole, Type parentType, Set<Role> entryRoles) {
+    public static Set<Role> compatibleRoles(@Nullable Role parentRole, @Nullable Type parentType, Set<Role> entryRoles) {
         Set<Role> compatibleRoles = parentRole != null? Sets.newHashSet(parentRole) : Sets.newHashSet();
 
         if (parentRole != null && !Schema.MetaSchema.isMetaLabel(parentRole.label()) ){
@@ -231,10 +234,14 @@ public class ReasonerUtils {
         return compatibleRoles;
     }
 
-    public static Set<Role> compatibleRoles(Type type, Set<Role> relRoles){
-        return compatibleRoles(null, type, relRoles);
+    public static Set<Role> compatibleRoles(Set<Type> types, Set<Role> relRoles){
+        Iterator<Type> typeIterator = types.iterator();
+        Set<Role> roles = relRoles;
+        while(typeIterator.hasNext()){
+            roles = Sets.intersection(roles, compatibleRoles(null, typeIterator.next(), relRoles));
+        }
+        return roles;
     }
-
 
     /**
      * @param childTypes type atoms of child query
@@ -242,7 +249,7 @@ public class ReasonerUtils {
      * @param childParentUnifier unifier to unify child with parent
      * @return combined unifier for type atoms
      */
-    public static Unifier typeUnifier(Set<TypeAtom> childTypes, Set<TypeAtom> parentTypes, Unifier childParentUnifier, UnifierComparison unifierType){
+    public static Unifier typeUnifier(Set<TypeAtom> childTypes, Set<TypeAtom> parentTypes, Unifier childParentUnifier, UnifierType unifierType){
         Unifier unifier = childParentUnifier;
         for(TypeAtom childType : childTypes){
             Variable childVarName = childType.getVarName();
@@ -273,7 +280,7 @@ public class ReasonerUtils {
 
     private static <B, S extends B> Map<Equivalence.Wrapper<B>, Integer> getCardinalityMap(Collection<S> coll, Equivalence<B> equiv) {
         Map<Equivalence.Wrapper<B>, Integer> count = new HashMap<>();
-        for (S obj : coll) count.merge(equiv.wrap(obj), 1, (a, b) -> a + b);
+        for (S obj : coll) count.merge(equiv.wrap(obj), 1, Integer::sum);
         return count;
     }
 

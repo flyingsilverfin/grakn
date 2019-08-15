@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -37,9 +37,6 @@ public interface Atomic {
     @CheckReturnValue
     Atomic copy(ReasonerQuery parent);
 
-    @CheckReturnValue
-    Atomic neqPositive();
-
     /**
      * @return variable name of this atomic
      */
@@ -53,7 +50,7 @@ public interface Atomic {
     Statement getPattern();
 
     /**
-     * @return the {@link ReasonerQuery} this atomic belongs to
+     * @return the ReasonerQuery this atomic belongs to
      */
     ReasonerQuery getParentQuery();
 

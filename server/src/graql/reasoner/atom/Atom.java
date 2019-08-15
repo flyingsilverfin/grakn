@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,7 +18,6 @@
 package grakn.core.graql.reasoner.atom;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import grakn.core.common.exception.ErrorMessage;
@@ -34,33 +33,31 @@ import grakn.core.graql.reasoner.atom.binary.OntologicalAtom;
 import grakn.core.graql.reasoner.atom.binary.RelationAtom;
 import grakn.core.graql.reasoner.atom.binary.TypeAtom;
 import grakn.core.graql.reasoner.atom.predicate.IdPredicate;
-import grakn.core.graql.reasoner.atom.predicate.NeqPredicate;
 import grakn.core.graql.reasoner.atom.predicate.Predicate;
 import grakn.core.graql.reasoner.atom.predicate.ValuePredicate;
+import grakn.core.graql.reasoner.atom.predicate.VariablePredicate;
 import grakn.core.graql.reasoner.cache.SemanticDifference;
 import grakn.core.graql.reasoner.cache.VariableDefinition;
 import grakn.core.graql.reasoner.rule.InferenceRule;
 import grakn.core.graql.reasoner.unifier.MultiUnifier;
 import grakn.core.graql.reasoner.unifier.MultiUnifierImpl;
 import grakn.core.graql.reasoner.unifier.Unifier;
-import grakn.core.graql.reasoner.unifier.UnifierComparison;
 import grakn.core.graql.reasoner.unifier.UnifierType;
 import graql.lang.property.IsaProperty;
 import graql.lang.property.VarProperty;
 import graql.lang.statement.Variable;
-
-import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 
 import static java.util.stream.Collectors.toSet;
 
 /**
- * {@link AtomicBase} extension defining specialised functionalities.
+ * AtomicBase extension defining specialised functionalities.
  */
 public abstract class Atom extends AtomicBase {
 
@@ -69,6 +66,8 @@ public abstract class Atom extends AtomicBase {
     public RelationAtom toRelationAtom() {
         throw GraqlQueryException.illegalAtomConversion(this, RelationAtom.class);
     }
+
+    public AttributeAtom toAttributeAtom() { throw GraqlQueryException.illegalAtomConversion(this, AttributeAtom.class); }
 
     public IsaAtom toIsaAtom() {
         throw GraqlQueryException.illegalAtomConversion(this, IsaAtom.class);
@@ -100,8 +99,8 @@ public abstract class Atom extends AtomicBase {
         return//check whether propagated answers would be complete
                 !inverse.isEmpty() &&
                         inverse.stream().allMatch(u -> u.values().containsAll(this.getVarNames()))
-                        && !parent.getPredicates(NeqPredicate.class).findFirst().isPresent()
-                        && !this.getPredicates(NeqPredicate.class).findFirst().isPresent();
+                        && !parent.getPredicates(VariablePredicate.class).findFirst().isPresent()
+                        && !this.getPredicates(VariablePredicate.class).findFirst().isPresent();
     }
 
     /**
@@ -128,6 +127,11 @@ public abstract class Atom extends AtomicBase {
                 .collect(toSet());
         return mappedVars.containsAll(getVarNames());
     }
+
+    /**
+     * @return true if the query corresponding to this atom has a unique (single) answer if any
+     */
+    public boolean hasUniqueAnswer(){ return isGround();}
 
     /**
      * @return true if this atom is bounded - via substitution/specific resource or schema
@@ -194,11 +198,6 @@ public abstract class Atom extends AtomicBase {
     }
 
     /**
-     * @return partial substitutions for this atom (NB: instances)
-     */
-    public Stream<IdPredicate> getPartialSubstitutions() { return Stream.empty();}
-
-    /**
      * @return set of variables that need to be have their roles expanded
      */
     public Set<Variable> getRoleExpansionVariables() { return new HashSet<>();}
@@ -231,7 +230,7 @@ public abstract class Atom extends AtomicBase {
         if (applicableRules == null) {
             applicableRules = new HashSet<>();
             getPotentialRules()
-                    .map(rule -> tx().ruleCache().getRule(rule, () -> new InferenceRule(rule, tx())))
+                    .map(rule -> tx().ruleCache().getRule(rule))
                     .filter(this::isRuleApplicable)
                     .map(r -> r.rewrite(this))
                     .forEach(applicableRules::add);
@@ -254,7 +253,7 @@ public abstract class Atom extends AtomicBase {
      */
     public boolean requiresDecomposition() {
         return this.getPotentialRules()
-                .map(r -> tx().ruleCache().getRule(r, () -> new InferenceRule(r, tx())))
+                .map(r -> tx().ruleCache().getRule(r))
                 .anyMatch(InferenceRule::appendsRolePlayers);
     }
 
@@ -276,8 +275,8 @@ public abstract class Atom extends AtomicBase {
     public abstract Stream<Predicate> getInnerPredicates();
 
     /**
-     * @param type the class of {@link Predicate} to return
-     * @param <T>  the type of {@link Predicate} to return
+     * @param type the class of Predicate to return
+     * @param <T>  the type of Predicate to return
      * @return stream of predicates relevant to this atom
      */
     public <T extends Predicate> Stream<T> getInnerPredicates(Class<T> type) {
@@ -287,8 +286,8 @@ public abstract class Atom extends AtomicBase {
     /**
      *
      * @param var variable of interest
-     * @param type the class of {@link Predicate} to return
-     * @param <T>  the type of {@link Predicate} to return
+     * @param type the class of Predicate to return
+     * @param <T>  the type of Predicate to return
      * @return stream of all predicates (public and inner) relevant to this atom and variable
      */
     public <T extends Predicate> Stream<T> getAllPredicates(Variable var, Class<T> type) {
@@ -308,8 +307,8 @@ public abstract class Atom extends AtomicBase {
     }
 
     /**
-     * @param type the class of {@link Predicate} to return
-     * @param <T>  the type of neighbour {@link Atomic} to return
+     * @param type the class of Predicate to return
+     * @param <T>  the type of neighbour Atomic to return
      * @return neighbours of this atoms, i.e. atoms connected to this atom via shared variable
      */
     protected <T extends Atomic> Stream<T> getNeighbours(Class<T> type) {
@@ -352,11 +351,17 @@ public abstract class Atom extends AtomicBase {
     public List<Atom> atomOptions(ConceptMap sub) { return Lists.newArrayList(inferTypes(sub));}
 
     /**
-     * @param type to be added to this {@link Atom}
-     * @return new {@link Atom} with specified type
+     * @param type to be added to this Atom
+     * @return new Atom with specified type
      */
     public Atom addType(SchemaConcept type) { return this;}
 
+    /**
+     * Materialises the atom - does an insert of the corresponding pattern.
+     * Exhibits PUT behaviour - if things are already present, nothing is inserted.
+     *
+     * @return materialised answer to this atom
+     */
     public Stream<ConceptMap> materialise() { return Stream.empty();}
 
     /**
@@ -405,7 +410,7 @@ public abstract class Atom extends AtomicBase {
      * @return corresponding unifier
      */
     @Nullable
-    public abstract Unifier getUnifier(Atom parentAtom, UnifierComparison unifierType);
+    public abstract Unifier getUnifier(Atom parentAtom, UnifierType unifierType);
 
     /**
      *
@@ -414,7 +419,7 @@ public abstract class Atom extends AtomicBase {
      * @param unifierType unifier type in question
      * @return true if predicates between this (child) and parent are compatible based on the mappings provided by unifier
      */
-    protected boolean isPredicateCompatible(Atom parentAtom, Unifier unifier, UnifierComparison unifierType){
+    protected boolean isPredicateCompatible(Atom parentAtom, Unifier unifier, UnifierType unifierType){
         //check value predicates compatibility
         return unifier.mappings().stream().allMatch(mapping -> {
             Variable childVar = mapping.getKey();
@@ -449,7 +454,7 @@ public abstract class Atom extends AtomicBase {
      * @param unifierType type of unifier to be computed
      * @return multiunifier
      */
-    public MultiUnifier getMultiUnifier(Atom parentAtom, UnifierComparison unifierType) {
+    public MultiUnifier getMultiUnifier(Atom parentAtom, UnifierType unifierType) {
         //NB only for relations we can have non-unique unifiers
         Unifier unifier = this.getUnifier(parentAtom, unifierType);
         return unifier != null ? new MultiUnifierImpl(unifier) : MultiUnifierImpl.nonExistent();
@@ -465,20 +470,20 @@ public abstract class Atom extends AtomicBase {
      */
     public SemanticDifference semanticDifference(Atom parentAtom, Unifier unifier) {
         Set<VariableDefinition> diff = new HashSet<>();
-        ImmutableMap<Variable, Type> childVarTypeMap = this.getParentQuery().getVarTypeMap(false);
-        ImmutableMap<Variable, Type> parentVarTypeMap = parentAtom.getParentQuery().getVarTypeMap(false);
         Unifier unifierInverse = unifier.inverse();
 
         unifier.mappings().forEach(m -> {
             Variable childVar = m.getKey();
             Variable parentVar = m.getValue();
-            Type childType = childVarTypeMap.get(childVar);
-            Type parentType = parentVarTypeMap.get(parentVar);
+
+            Type childType = this.getParentQuery().getUnambiguousType(childVar, false);
+            Type parentType = parentAtom.getParentQuery().getUnambiguousType(parentVar, false);
             Type type = childType != null ?
                     parentType != null ?
                             (!parentType.equals(childType) ? childType : null) :
                             childType
                     : null;
+
 
             Set<ValuePredicate> predicates = this.getPredicates(childVar, ValuePredicate.class).collect(toSet());
             parentAtom.getPredicates(parentVar, ValuePredicate.class)

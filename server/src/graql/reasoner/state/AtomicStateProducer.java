@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -28,24 +28,22 @@ import java.util.Set;
 /**
  *
  * <p>
- * State producing {@link AtomicState}s when when atom type is unknown and type inference is required
+ * State producing AtomicStates when when atom type is unknown and type inference is required
  * </p>
  *
  *
  */
-public class AtomicStateProducer extends QueryStateBase {
+public class AtomicStateProducer extends AnswerPropagatorState<ReasonerAtomicQuery> {
 
-    private final Iterator<ResolutionState> subGoalIterator;
-
-    public AtomicStateProducer(ReasonerAtomicQuery query, ConceptMap sub, Unifier u, QueryStateBase parent, Set<ReasonerAtomicQuery> subGoals) {
-        super(sub, u, parent, subGoals);
-        this.subGoalIterator = query.subGoals(sub, u, parent, subGoals).iterator();
+    public AtomicStateProducer(ReasonerAtomicQuery query, ConceptMap sub, Unifier u, AnswerPropagatorState parent, Set<ReasonerAtomicQuery> subGoals) {
+        super(query, sub, u, parent, subGoals);
     }
 
     @Override
-    public ResolutionState generateSubGoal() {
-        return subGoalIterator.hasNext() ? subGoalIterator.next() : null;
+    Iterator<ResolutionState> generateChildStateIterator() {
+        return getQuery().expandedStates(getSubstitution(), getUnifier(), getParentState(), getVisitedSubGoals()).iterator();
     }
+
 
     @Override
     ResolutionState propagateAnswer(AnswerState state) {

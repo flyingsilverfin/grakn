@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -27,12 +27,11 @@ import graql.lang.Graql;
 import graql.lang.pattern.Conjunction;
 import graql.lang.pattern.Pattern;
 import graql.lang.query.MatchClause;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.Iterator;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Iterator to handle execution of disjunctions.
@@ -53,11 +52,6 @@ public class DisjunctionIterator extends ReasonerQueryIterator {
 
     public DisjunctionIterator(MatchClause matchClause, TransactionOLTP tx) {
         this.tx = tx;
-        //clear cache for now so that it only applies to this disjunction
-        tx.queryCache().clear();
-
-
-
         int conjunctionIterSpanId = ServerTracing.startScopedChildSpan("DisjunctionIterator() create DNF, conjunction iterator");
 
         this.conjIterator = matchClause.getPatterns().getNegationDNF().getPatterns().stream().iterator();
@@ -76,7 +70,7 @@ public class DisjunctionIterator extends ReasonerQueryIterator {
 
         return doNotResolve ?
                 tx.stream(Graql.match(conj), false).iterator() :
-                new ResolutionIterator(query, new HashSet<>(), query.requiresReiteration());
+                new ResolutionIterator(query, new HashSet<>());
     }
 
     @Override

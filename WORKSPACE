@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -23,17 +23,19 @@ workspace(name = "graknlabs_grakn_core")
 # Load Grakn Labs dependencies #
 ################################
 
-load("//dependencies/graknlabs:dependencies.bzl", "graknlabs_graql")
-graknlabs_graql()
-
-load("//dependencies/graknlabs:dependencies.bzl", "graknlabs_client_java")
-graknlabs_client_java()
-
-load("//dependencies/graknlabs:dependencies.bzl", "graknlabs_benchmark")
-graknlabs_benchmark()
-
-load("//dependencies/graknlabs:dependencies.bzl", "graknlabs_build_tools")
+load(
+    "//dependencies/graknlabs:dependencies.bzl",
+    "graknlabs_build_tools",
+    "graknlabs_graql",
+    "graknlabs_protocol",
+    "graknlabs_client_java",
+    "graknlabs_benchmark"
+)
 graknlabs_build_tools()
+graknlabs_graql()
+graknlabs_protocol()
+graknlabs_client_java()
+graknlabs_benchmark()
 
 load("@graknlabs_build_tools//distribution:dependencies.bzl", "graknlabs_bazel_distribution")
 graknlabs_bazel_distribution()
@@ -55,6 +57,9 @@ bazel_toolchain()
 load("@graknlabs_build_tools//checkstyle:dependencies.bzl", "checkstyle_dependencies")
 checkstyle_dependencies()
 
+load("@graknlabs_build_tools//sonarcloud:dependencies.bzl", "sonarcloud_dependencies")
+sonarcloud_dependencies()
+
 load("@graknlabs_build_tools//bazel:dependencies.bzl", "bazel_rules_python")
 bazel_rules_python()
 
@@ -65,6 +70,7 @@ pip_import(
     name = "graknlabs_build_tools_ci_pip",
     requirements = "@graknlabs_build_tools//ci:requirements.txt",
 )
+
 load("@graknlabs_build_tools_ci_pip//:requirements.bzl",
 graknlabs_build_tools_ci_pip_install = "pip_install")
 graknlabs_build_tools_ci_pip_install()
@@ -151,7 +157,7 @@ google_common_workspace_rules()
 
 
 # Generate a JSON document of commit hashes of all external workspace dependencies
-load("@graknlabs_build_tools//bazel:rules.bzl", "workspace_refs")
+load("@graknlabs_bazel_distribution//common:rules.bzl", "workspace_refs")
 workspace_refs(
     name = "graknlabs_grakn_core_workspace_refs"
 )

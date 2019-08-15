@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -23,7 +23,7 @@ import grakn.core.concept.ConceptId;
 import grakn.core.concept.Label;
 import grakn.core.concept.type.SchemaConcept;
 import grakn.core.graql.exception.GraqlCheckedException;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.reasoner.atom.Atomic;
 import grakn.core.graql.reasoner.query.ReasonerQuery;
 import grakn.core.server.session.TransactionOLTP;
@@ -34,7 +34,7 @@ import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
 
 /**
- * Predicate implementation specialising it to be an id predicate. Corresponds to {@link IdProperty}.
+ * Predicate implementation specialising it to be an id predicate. Corresponds to IdProperty.
  */
 public class IdPredicate extends Predicate<ConceptId> {
 
@@ -66,9 +66,9 @@ public class IdPredicate extends Predicate<ConceptId> {
         return new Statement(varName).id(typeId.getValue());
     }
 
-    private static Statement createIdVar(Variable varName, Label label, TransactionOLTP graph) {
-        SchemaConcept schemaConcept = graph.getSchemaConcept(label);
-        if (schemaConcept == null) throw GraqlQueryException.labelNotFound(label);
+    private static Statement createIdVar(Variable varName, Label label, TransactionOLTP tx) {
+        SchemaConcept schemaConcept = tx.getSchemaConcept(label);
+        if (schemaConcept == null) throw GraqlSemanticException.labelNotFound(label);
         return new Statement(varName).id(schemaConcept.id().getValue());
     }
 

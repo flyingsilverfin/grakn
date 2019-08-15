@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -149,6 +149,16 @@ public class ReasonerQueries {
      */
     public static ReasonerAtomicQuery atomic(Atom atom){
         return new ReasonerAtomicQuery(atom).inferTypes();
+    }
+
+    /**
+     * create a reasoner atomic query from provided set of atomics
+     * @param as set of atomics that define the query
+     * @param tx corresponding transaction
+     * @return reasoner query defined by the provided set of atomics
+     */
+    public static ReasonerAtomicQuery atomic(Set<Atomic> as, TransactionOLTP tx){
+        return new ReasonerAtomicQuery(as, tx).inferTypes();
     }
 
     /**

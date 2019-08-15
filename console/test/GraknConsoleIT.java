@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -24,9 +24,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import grakn.core.common.util.GraknVersion;
 import grakn.core.console.GraknConsole;
-import grakn.core.graql.exception.GraqlQueryException;
 import grakn.core.rule.GraknTestServer;
 import graql.lang.Graql;
 import io.grpc.Status;
@@ -117,12 +115,6 @@ public class GraknConsoleIT {
     }
 
     @Test
-    public void when_startingConsoleWithOptionVersion_expect_printVersion() {
-        String result = runConsoleSessionWithoutExpectingErrors("", "--version");
-        assertThat(result, containsString(GraknVersion.VERSION));
-    }
-
-    @Test
     public void when_writingToDefaultKeyspace_expect_successReadFromDefaultKeyspace() throws Exception {
         runConsoleSessionWithoutExpectingErrors("define im-in-the-default-keyspace sub entity;\ncommit\n");
 
@@ -163,6 +155,14 @@ public class GraknConsoleIT {
                 "match movie sub entity; get; count;",
                 containsString("1")
         );
+    }
+
+    @Test
+    public void when_loadingInvalidDataFromFile_expectError() {
+        Response response = runConsoleSession("", "-f", "console/test/invalid-data.cql");
+
+        assertThat(response.err(), allOf(containsString("Failed to load file:"), containsString("A structural validation error has occurred.")));
+        assertThat(response.out(), not(containsString("Successful commit:")));
     }
 
     @Test
@@ -467,15 +467,16 @@ public class GraknConsoleIT {
             System.setIn(new ByteArrayInputStream(input.getBytes()));
             GraknConsole console = new GraknConsole(args, printOut, printErr);
             console.run();
+            printOut.flush();
+            printErr.flush();
         } catch (Exception e) {
             printErr.println(e.getMessage());
             printErr.flush();
         } finally {
             resetIO();
+            printErr.close();
+            printOut.close();
         }
-
-        printOut.flush();
-        printErr.flush();
 
         return Response.of(bufferOut.toString(), bufferErr.toString());
     }
@@ -495,7 +496,7 @@ public class GraknConsoleIT {
         boolean uriSpecified = argList.contains("-r");
         if (!uriSpecified) {
             argList.add("-r");
-            argList.add(server.grpcUri().toString());
+            argList.add(server.grpcUri());
         }
 
         return argList.toArray(new String[argList.size()]);

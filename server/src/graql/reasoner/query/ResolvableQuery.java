@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -20,12 +20,14 @@ package grakn.core.graql.reasoner.query;
 
 import grakn.core.concept.answer.ConceptMap;
 import grakn.core.graql.reasoner.atom.Atom;
-import grakn.core.graql.reasoner.state.QueryStateBase;
+import grakn.core.graql.reasoner.state.AnswerPropagatorState;
 import grakn.core.graql.reasoner.state.ResolutionState;
 import grakn.core.graql.reasoner.unifier.Unifier;
-
 import graql.lang.Graql;
 import graql.lang.query.GraqlGet;
+
+import java.util.HashSet;
+import java.util.Iterator;
 import javax.annotation.CheckReturnValue;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -57,10 +59,10 @@ public interface ResolvableQuery extends ReasonerQuery {
     ResolvableQuery withSubstitution(ConceptMap sub);
 
     /**
-     * @return corresponding neqPositive query (with neq predicates removed)
+     * @return corresponding query with variable predicates removed
      */
     @CheckReturnValue
-    ResolvableQuery neqPositive();
+    ResolvableQuery constantValuePredicateQuery();
 
     /**
      * @return corresponding reasoner query with inferred types
@@ -108,24 +110,33 @@ public interface ResolvableQuery extends ReasonerQuery {
      * @return stream of answers
      */
     @CheckReturnValue
-    Stream<ConceptMap> resolve();
+    default Stream<ConceptMap> resolve(){
+        return resolve(new HashSet<>());
+    }
 
     /**
      *
      * @param subGoals already visited subgoals
-     * @param reiterate true if reiteration should be performed
      * @return stream of resolved answers
      */
     @CheckReturnValue
-    Stream<ConceptMap> resolve(Set<ReasonerAtomicQuery> subGoals, boolean reiterate);
+    Stream<ConceptMap> resolve(Set<ReasonerAtomicQuery> subGoals);
 
     /**
      * @param sub partial substitution
      * @param u unifier with parent state
      * @param parent parent state
      * @param subGoals set of visited sub goals
-     * @return resolution subGoal formed from this query
+     * @return resolution state formed from this query
      */
     @CheckReturnValue
-    ResolutionState subGoal(ConceptMap sub, Unifier u, QueryStateBase parent, Set<ReasonerAtomicQuery> subGoals);
+    ResolutionState resolutionState(ConceptMap sub, Unifier u, AnswerPropagatorState parent, Set<ReasonerAtomicQuery> subGoals);
+
+    /**
+     * @param parent parent state
+     * @param subGoals set of visited sub goals
+     * @return inner query state iterator (db iter + unifier + state iter) for this query
+     */
+    @CheckReturnValue
+    Iterator<ResolutionState> innerStateIterator(AnswerPropagatorState parent, Set<ReasonerAtomicQuery> subGoals);
 }

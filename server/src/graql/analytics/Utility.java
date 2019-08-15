@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -21,11 +21,9 @@ package grakn.core.graql.analytics;
 import com.google.common.collect.Sets;
 import grakn.core.concept.Concept;
 import grakn.core.concept.ConceptId;
-import grakn.core.concept.Label;
 import grakn.core.concept.LabelId;
-import grakn.core.concept.type.SchemaConcept;
-import grakn.core.server.session.TransactionOLTP;
 import grakn.core.server.kb.Schema;
+import grakn.core.server.session.TransactionOLTP;
 import graql.lang.Graql;
 import org.apache.tinkerpop.gremlin.process.computer.KeyValue;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
@@ -42,13 +40,12 @@ import static graql.lang.Graql.var;
 /**
  * Some helper methods for MapReduce and vertex program.
  * <p>
- *
  */
 
 public class Utility {
     /**
      * The Grakn type property on a given Tinkerpop vertex.
-     * If the vertex is a {@link SchemaConcept}, return invalid {@link Label}.
+     * If the vertex is a SchemaConcept, return invalid Label.
      *
      * @param vertex the Tinkerpop vertex
      * @return the type
@@ -113,18 +110,18 @@ public class Utility {
     /**
      * Check whether it is possible that there is a resource edge between the two given concepts.
      */
-    private static boolean mayHaveResourceEdge(TransactionOLTP graknGraph, ConceptId conceptId1, ConceptId conceptId2) {
-        Concept concept1 = graknGraph.getConcept(conceptId1);
-        Concept concept2 = graknGraph.getConcept(conceptId2);
+    private static boolean mayHaveResourceEdge(TransactionOLTP tx, ConceptId conceptId1, ConceptId conceptId2) {
+        Concept concept1 = tx.getConcept(conceptId1);
+        Concept concept2 = tx.getConcept(conceptId2);
         return concept1 != null && concept2 != null && (concept1.isAttribute() || concept2.isAttribute());
     }
 
     /**
      * Get the resource edge id if there is one. Return null if not.
      */
-    public static ConceptId getResourceEdgeId(TransactionOLTP graph, ConceptId conceptId1, ConceptId conceptId2) {
-        if (mayHaveResourceEdge(graph, conceptId1, conceptId2)) {
-            Optional<Concept> firstConcept = graph.stream(Graql.match(
+    public static ConceptId getResourceEdgeId(TransactionOLTP tx, ConceptId conceptId1, ConceptId conceptId2) {
+        if (mayHaveResourceEdge(tx, conceptId1, conceptId2)) {
+            Optional<Concept> firstConcept = tx.stream(Graql.match(
                     var("x").id(conceptId1.getValue()),
                     var("y").id(conceptId2.getValue()),
                     var("z").rel(var("x")).rel(var("y")))

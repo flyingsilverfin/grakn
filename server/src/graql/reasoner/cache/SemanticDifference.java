@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -25,7 +25,7 @@ import grakn.core.concept.answer.ConceptMap;
 import grakn.core.concept.thing.Relation;
 import grakn.core.concept.type.Role;
 import grakn.core.concept.type.Type;
-import grakn.core.graql.executor.property.ValueExecutor;
+import grakn.core.graql.executor.property.value.ValueOperation;
 import grakn.core.graql.reasoner.atom.predicate.ValuePredicate;
 import grakn.core.graql.reasoner.unifier.Unifier;
 import grakn.core.graql.reasoner.unifier.UnifierType;
@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 
 /**
  * Quantifies semantic difference between two queries provided they are in a subsumption relation, i. e. there exists
- * a {@link Unifier} of {@link UnifierType#SUBSUMPTIVE} between them.
+ * a Unifier of {@link UnifierType#SUBSUMPTIVE} between them.
  * Semantic difference between query C and P defines a specialisation operation
  * required to transform query P into a query equivalent to C.
  * In that way we can check whether answers to the parent (more generic) query are also answers
@@ -81,7 +81,7 @@ public class SemanticDifference {
                 .collect(Collectors.toSet());
     }
 
-    public boolean satisfiedBy(ConceptMap answer) {
+    private boolean satisfiedBy(ConceptMap answer) {
         if (isEmpty()) return true;
 
         Map<Variable, Set<Role>> roleRequirements = this.definition.stream()
@@ -113,7 +113,7 @@ public class SemanticDifference {
             return (type == null || type.subs().anyMatch(t -> t.equals(concept.asThing().type()))) &&
                     (role == null || role.subs().anyMatch(r -> r.equals(concept.asRole()))) &&
                     (vps.isEmpty() || vps.stream().allMatch(
-                            vp -> ValueExecutor.Operation.of(vp.getPredicate()).test(concept.asAttribute().value())
+                            vp -> ValueOperation.of(vp.getPredicate()).test(concept.asAttribute().value())
                     ));
         });
     }

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,15 +19,17 @@
 package grakn.core.graql.gremlin.fragment;
 
 import com.google.common.collect.Sets;
+import grakn.core.common.util.Tuple;
 import grakn.core.graql.gremlin.spanningtree.graph.DirectedEdge;
+import grakn.core.graql.gremlin.spanningtree.graph.EdgeNode;
 import grakn.core.graql.gremlin.spanningtree.graph.Node;
 import grakn.core.graql.gremlin.spanningtree.graph.NodeId;
 import grakn.core.graql.gremlin.spanningtree.util.Weighted;
-import grakn.core.graql.reasoner.utils.Pair;
 
 import java.util.Map;
 import java.util.Set;
 
+import static grakn.core.common.util.Collections.tuple;
 import static grakn.core.graql.gremlin.spanningtree.util.Weighted.weighted;
 
 /**
@@ -38,22 +40,25 @@ import static grakn.core.graql.gremlin.spanningtree.util.Weighted.weighted;
  */
 public abstract class EdgeFragment extends Fragment {
 
-    abstract NodeId getMiddleNodeId();
+    abstract protected NodeId getMiddleNodeId();
+    abstract protected Node startNode();
+    abstract protected Node endNode();
 
+    @Override
     public Set<Node> getNodes() {
-        Node start = new Node(NodeId.of(NodeId.NodeType.VAR, start()));
-        Node end = new Node(NodeId.of(NodeId.NodeType.VAR, end()));
-        Node middle = new Node(getMiddleNodeId());
+        Node start = startNode();
+        Node end = endNode();
+        Node middle = new EdgeNode(getMiddleNodeId());
         middle.setInvalidStartingPoint();
         return Sets.newHashSet(start, end, middle);
     }
 
     @Override
-    public Pair<Node, Node> getMiddleNodeDirectedEdge(Map<NodeId, Node> nodes) {
-        Node start = nodes.get(NodeId.of(NodeId.NodeType.VAR, start()));
+    public Tuple<Node, Node> getMiddleNodeDirectedEdge(Map<NodeId, Node> nodes) {
+        Node start = nodes.get(NodeId.of(NodeId.Type.VAR, start()));
         Node middle = nodes.get(getMiddleNodeId());
         // directed edge: middle -> start
-        return new Pair<>(middle, start);
+        return tuple(middle, start);
     }
 
     @Override
@@ -65,8 +70,8 @@ public abstract class EdgeFragment extends Fragment {
         // since the middle node cannot be addressed it does not have a variable, so we create a new ID for it
         // as the combination of start() and end() with the type
 
-        Node start = nodes.get(NodeId.of(NodeId.NodeType.VAR, start()));
-        Node end = nodes.get(NodeId.of(NodeId.NodeType.VAR, end()));
+        Node start = nodes.get(NodeId.of(NodeId.Type.VAR, start()));
+        Node end = nodes.get(NodeId.of(NodeId.Type.VAR, end()));
         Node middle = nodes.get(getMiddleNodeId());
 
         return Sets.newHashSet(

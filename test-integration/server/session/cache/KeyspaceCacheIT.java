@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,16 +19,28 @@
 package grakn.core.server.session.cache;
 
 import grakn.client.GraknClient;
+import grakn.core.concept.Concept;
+import grakn.core.concept.answer.ConceptMap;
+import grakn.core.concept.thing.Attribute;
 import grakn.core.concept.type.Role;
 import grakn.core.rule.GraknTestServer;
 import grakn.core.server.session.SessionImpl;
 import grakn.core.server.session.TransactionOLTP;
+import graql.lang.Graql;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static java.util.stream.Collectors.toSet;
 import static org.junit.Assert.assertTrue;
@@ -49,7 +61,7 @@ public class KeyspaceCacheIT {
     @Before
     public void setUp() {
         localSession = server.sessionWithNewKeyspace();
-        graknClient = new GraknClient(server.grpcUri().toString());
+        graknClient = new GraknClient(server.grpcUri());
         remoteSession = graknClient.session(localSession.keyspace().name());
     }
 
@@ -170,7 +182,7 @@ public class KeyspaceCacheIT {
             tx.putRelationType("test-relationship").relates(role1).relates(role2);
             tx.commit();
         }
-        GraknClient.Session testSession = new GraknClient(server.grpcUri().toString()).session(localSession.keyspace().name());
+        GraknClient.Session testSession = new GraknClient(server.grpcUri()).session(localSession.keyspace().name());
         try (GraknClient.Transaction tx = testSession.transaction().read()) {
             Set<String> entityTypeSubs = tx.getMetaEntityType().subs().map(et -> et.label().getValue()).collect(toSet());
             assertTrue(entityTypeSubs.contains("animal"));
@@ -199,5 +211,4 @@ public class KeyspaceCacheIT {
         }
         testSession.close();
     }
-
 }

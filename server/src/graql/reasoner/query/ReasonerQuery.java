@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,7 +18,7 @@
 
 package grakn.core.graql.reasoner.query;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.SetMultimap;
 import grakn.core.concept.Label;
 import grakn.core.concept.answer.ConceptMap;
 import grakn.core.concept.type.Type;
@@ -90,8 +90,8 @@ public interface ReasonerQuery{
     Conjunction<Pattern> getPattern();
 
     /**
-     * @param type the class of {@link Atomic} to return
-     * @param <T> the type of {@link Atomic} to return
+     * @param type the class of Atomic to return
+     * @param <T> the type of Atomic to return
      * @return stream of atoms of specified type defined in this query
      */
     @CheckReturnValue
@@ -137,14 +137,14 @@ public interface ReasonerQuery{
      * @return map of variable name - corresponding type pairs
      */
     @CheckReturnValue
-    ImmutableMap<Variable, Type> getVarTypeMap();
+    SetMultimap<Variable, Type> getVarTypeMap();
 
     /**
      * @param inferTypes whether types should be inferred from ids
      * @return map of variable name - corresponding type pairs
      */
     @CheckReturnValue
-    ImmutableMap<Variable, Type> getVarTypeMap(boolean inferTypes);
+    SetMultimap<Variable, Type> getVarTypeMap(boolean inferTypes);
 
     /**
      * Returns a var-type of this query with possible additions coming from supplied partial answer.
@@ -152,6 +152,8 @@ public interface ReasonerQuery{
      * @return map of variable name - corresponding type pairs
      */
     @CheckReturnValue
-    ImmutableMap<Variable, Type> getVarTypeMap(ConceptMap sub);
+    SetMultimap<Variable, Type> getVarTypeMap(ConceptMap sub);
+
+    Type getUnambiguousType(Variable var, boolean inferTypes);
 
 }

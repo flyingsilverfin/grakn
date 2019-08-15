@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -24,24 +24,33 @@ import grakn.core.graql.reasoner.query.ReasonerQueries;
 import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
 import grakn.core.graql.reasoner.unifier.Unifier;
 
+import java.util.Iterator;
 import java.util.Set;
 
 /**
- * Query state corresponding to a conjunctive query ({@link ReasonerQueryImpl}) in the resolution tree.
+ * Query state corresponding to a conjunctive query (ReasonerQueryImpl) in the resolution tree.
  */
-public class ConjunctiveState extends QueryState<ReasonerQueryImpl> {
+public class ConjunctiveState extends AnswerPropagatorState<ReasonerQueryImpl> {
 
     public ConjunctiveState(ReasonerQueryImpl q,
                             ConceptMap sub,
                             Unifier u,
-                            QueryStateBase parent,
+                            AnswerPropagatorState parent,
                             Set<ReasonerAtomicQuery> visitedSubGoals) {
         super(ReasonerQueries.create(q, sub), sub, u, parent, visitedSubGoals);
     }
 
     @Override
+    public String toString(){ return super.toString() + "\n" + getQuery() + "\n"; }
+
+    @Override
+    Iterator<ResolutionState> generateChildStateIterator() {
+        return getQuery().innerStateIterator(this, getVisitedSubGoals());
+    }
+
+    @Override
     ResolutionState propagateAnswer(AnswerState state) {
-        ConceptMap answer = state.getAnswer();
+        ConceptMap answer = consumeAnswer(state);
         return !answer.isEmpty() ? new AnswerState(answer, getUnifier(), getParentState()) : null;
     }
 

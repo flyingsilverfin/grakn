@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -23,8 +23,7 @@ import com.google.common.collect.Iterables;
 import grakn.core.concept.ConceptId;
 import grakn.core.concept.Label;
 import grakn.core.concept.type.AttributeType;
-import grakn.core.graql.executor.property.ValueExecutor;
-import grakn.core.concept.printer.StringPrinter;
+import grakn.core.graql.executor.property.value.ValueOperation;
 import grakn.core.server.kb.Schema;
 import graql.lang.property.VarProperty;
 import graql.lang.statement.Variable;
@@ -44,7 +43,7 @@ import static grakn.core.server.kb.Schema.VertexProperty.THING_TYPE_LABEL_ID;
 import static java.util.stream.Collectors.joining;
 
 /**
- * Factory for creating instances of {@link Fragment}.
+ * Factory for creating instances of Fragment.
  */
 public class Fragments {
 
@@ -115,7 +114,7 @@ public class Fragments {
         return new AutoValue_LabelFragment(varProperty, start, labels);
     }
 
-    public static Fragment value(VarProperty varProperty, Variable start, ValueExecutor.Operation<?, ?> predicate) {
+    public static Fragment value(VarProperty varProperty, Variable start, ValueOperation<?, ?> predicate) {
         return new ValueFragment(varProperty, start, predicate);
     }
 
@@ -136,12 +135,11 @@ public class Fragments {
     }
 
     /**
-     * A {@link Fragment} that uses an index stored on each attribute. Attributes are indexed by direct type and value.
+     * A Fragment that uses an index stored on each attribute. Attributes are indexed by direct type and value.
      */
     public static Fragment attributeIndex(
             @Nullable VarProperty varProperty, Variable start, Label label, Object attributeValue) {
-        String attributeIndex = Schema.generateAttributeIndex(label, attributeValue.toString());
-        return new AutoValue_AttributeIndexFragment(varProperty, start, attributeIndex);
+        return new AutoValue_AttributeIndexFragment(varProperty, start, label, attributeValue.toString());
     }
 
 
@@ -236,7 +234,7 @@ public class Fragments {
 
     static String displayOptionalTypeLabels(String name, @Nullable Set<Label> typeLabels) {
         if (typeLabels != null) {
-            return " " + name + ":" + typeLabels.stream().map(StringPrinter::label).collect(joining(","));
+            return " " + name + ":" + typeLabels.stream().map(Label::getValue).collect(joining(","));
         } else {
             return "";
         }

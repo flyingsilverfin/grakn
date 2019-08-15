@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,12 +19,11 @@
 package grakn.core.server.session.cache;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
 import grakn.core.concept.Concept;
 import grakn.core.concept.ConceptId;
 import grakn.core.concept.Label;
 import grakn.core.concept.LabelId;
+import grakn.core.concept.thing.Attribute;
 import grakn.core.concept.thing.Relation;
 import grakn.core.concept.thing.Thing;
 import grakn.core.concept.type.RelationType;
@@ -32,6 +31,8 @@ import grakn.core.concept.type.Role;
 import grakn.core.concept.type.Rule;
 import grakn.core.concept.type.SchemaConcept;
 import grakn.core.concept.type.Type;
+import grakn.core.graql.reasoner.utils.Pair;
+import grakn.core.server.kb.Schema;
 import grakn.core.server.kb.concept.AttributeImpl;
 import grakn.core.server.kb.structure.Casting;
 
@@ -47,7 +48,6 @@ import java.util.stream.Stream;
  * Built Concepts -  Prevents rebuilding when the same vertex is encountered
  * The Schema - Optimises validation checks by preventing db read.
  * Label - Allows mapping type labels to type Ids
- * TransactionOLTP meta Data - Allows transactions to function in different ways
  */
 public class TransactionCache {
     //Cache which is shared across multiple transactions
@@ -68,14 +68,18 @@ public class TransactionCache {
     private final Set<RelationType> modifiedRelationTypes = new HashSet<>();
 
     private final Set<Rule> modifiedRules = new HashSet<>();
+    private final Set<Thing> inferredConcepts = new HashSet<>();
+    private final Set<Thing> inferredConceptsToPersist = new HashSet<>();
 
     //We Track the number of concept connections which have been made which may result in a new shard
     private final Map<ConceptId, Long> shardingCount = new HashMap<>();
 
-    //New attributes are tracked so that we can merge any duplicate attributes in post.
-    // This is a map of attribute indices to concept ids
-    // The index and id are directly cached to prevent unneeded reads
-    private Multimap<String, ConceptId> newAttributes = ArrayListMultimap.create();
+    //New attributes are tracked so that we can merge any duplicate attributes at commit time.
+    // The label, index and id are directly cached to prevent unneeded reads
+    private Map<Pair<Label, String>, ConceptId> newAttributes = new HashMap<>();
+    // Track the removed attributes so that we can evict old attribute indexes from attributesCache in session
+    // after commit
+    private Set<String> removedAttributes = new HashSet<>();
 
     public TransactionCache(KeyspaceCache keyspaceCache) {
         this.keyspaceCache = keyspaceCache;
@@ -121,19 +125,11 @@ public class TransactionCache {
     }
 
     /**
-     * @return All the types that have gained or lost instances and by how much
-     */
-    public Map<ConceptId, Long> getShardingCount() {
-        return shardingCount;
-    }
-
-    /**
      * @return All the types labels currently cached in the transaction.
      */
     Map<Label, LabelId> getLabelCache() {
         return labelCache;
     }
-
 
     /**
      * @param concept The concept to no longer track
@@ -146,11 +142,18 @@ public class TransactionCache {
         modifiedRules.remove(concept);
 
         if (concept.isAttribute()) {
-            newAttributes.removeAll(AttributeImpl.from(concept.asAttribute()).getIndex());
+            AttributeImpl attr = AttributeImpl.from(concept.asAttribute());
+            newAttributes.remove(new Pair<>(attr.type().label(), attr.getIndex()));
+            removedAttributes.add(Schema.generateAttributeIndex(attr.type().label(), attr.value().toString()));
         }
 
         if (concept.isRelation()) {
             newRelations.remove(concept.asRelation());
+        }
+
+        if (concept.isThing()){
+            Thing instance = concept.asThing();
+            if (instance.isInferred()) removeInferredInstance(instance);
         }
 
         conceptCache.remove(concept.id());
@@ -178,7 +181,6 @@ public class TransactionCache {
             labelCache.put(schemaConcept.label(), schemaConcept.labelId());
         }
     }
-
 
     /**
      * Caches the mapping of a type label to a type id. This is necessary in order for ANY types to be looked up.
@@ -229,13 +231,38 @@ public class TransactionCache {
     }
 
     /**
+     * Caches an inferred instance for possible persistence later.
+     *
+     * @param thing The inferred instance to be cached.
+     */
+    public void inferredInstance(Thing thing){
+        inferredConcepts.add(thing);
+    }
+
+    /**
+     * Remove an inferred instance from tracking.
+     *
+     * @param thing The inferred instance to be cached.
+     */
+    public void removeInferredInstance(Thing thing){
+        inferredConcepts.remove(thing);
+        inferredConceptsToPersist.remove(thing);
+    }
+
+    public void inferredInstanceToPersist(Thing t) {
+        inferredConceptsToPersist.add(t);
+    }
+
+    Stream<Thing> getInferredInstances() {
+        return inferredConcepts.stream();
+    }
+
+    /**
      * @return cached things that are inferred
      */
-    public Stream<Thing> getInferredConcepts(){
-        return conceptCache.values().stream()
-                .filter(Concept::isThing)
-                .map(Concept::asThing)
-                .filter(Thing::isInferred);
+    public Stream<Thing> getInferredInstancesToDiscard() {
+        return inferredConcepts.stream()
+                .filter(t -> !inferredConceptsToPersist.contains(t));
     }
 
     /**
@@ -269,14 +296,12 @@ public class TransactionCache {
     }
 
 
-    public void addNewAttribute(String index, ConceptId conceptId) {
-        newAttributes.put(index, conceptId);
+    public void addNewAttribute(Label label, String index, ConceptId conceptId) {
+        newAttributes.put(new Pair<>(label, index), conceptId);
     }
 
-    public Map<String, Set<ConceptId>> getNewAttributes() {
-        Map<String, Set<ConceptId>> map = new HashMap<>();
-        newAttributes.asMap().forEach((attrValue, conceptIds) -> map.put(attrValue, new HashSet<>(conceptIds)));
-        return map;
+    public Map<Pair<Label, String>, ConceptId> getNewAttributes() {
+        return newAttributes;
     }
 
     //--------------------------------------- Concepts Needed For Validation -------------------------------------------
@@ -308,23 +333,9 @@ public class TransactionCache {
         return newRelations;
     }
 
-    //--------------------------------------- TransactionOLTP Specific Meta Data -------------------------------------------
-    public void closeTx() {
-
-        //Clear Collection Caches
-        modifiedThings.clear();
-        modifiedRoles.clear();
-        modifiedRelationTypes.clear();
-        modifiedRules.clear();
-        modifiedCastings.clear();
-        newAttributes.clear();
-        newRelations.clear();
-        shardingCount.clear();
-        conceptCache.clear();
-        schemaConceptCache.clear();
-        labelCache.clear();
+    public Set<String> getRemovedAttributes() {
+        return removedAttributes;
     }
-
 
     @VisibleForTesting
     Map<ConceptId, Concept> getConceptCache() {

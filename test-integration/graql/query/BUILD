@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -31,7 +31,9 @@ java_test(
         "//test-integration/rule:grakn-test-server",
         "//dependencies/maven/artifacts/org/hamcrest:hamcrest-library",
         "@graknlabs_graql//java:graql",
+         "@graknlabs_client_java//:client-java",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 java_test(
@@ -49,6 +51,7 @@ java_test(
         "//test-integration/util:graql-test-util",
         "@graknlabs_graql//java:graql",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 java_test(
@@ -64,6 +67,9 @@ java_test(
         "//test-integration/rule:grakn-test-server",
         "//test-integration/util:graql-test-util",
         "@graknlabs_graql//java:graql",
+    ],
+    classpath_resources = [
+        "//test-integration/resources:logback-test",
     ],
 )
 
@@ -83,6 +89,7 @@ java_test(
         "//test-integration/util:graql-test-util",
         "@graknlabs_graql//java:graql",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 java_test(
@@ -100,13 +107,14 @@ java_test(
         "//test-integration/util:graql-test-util",
         "@graknlabs_graql//java:graql",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 java_test(
-    name = "type-conversion-it",
+    name = "number-casting-it",
     size = "medium",
-    srcs = ["TypeConversionIT.java"],
-    test_class = "grakn.core.graql.query.TypeConversionIT",
+    srcs = ["NumberCastingIT.java"],
+    test_class = "grakn.core.graql.query.NumberCastingIT",
     deps = [
         "//concept",
         "//dependencies/maven/artifacts/com/google/guava",
@@ -115,6 +123,7 @@ java_test(
         "//test-integration/rule:grakn-test-server",
         "@graknlabs_graql//java:graql",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 java_test(
@@ -129,6 +138,7 @@ java_test(
         "//test-integration/util:graql-test-util",
         "@graknlabs_graql//java:graql",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 java_test(
@@ -143,6 +153,7 @@ java_test(
         "//test-integration/rule:grakn-test-server",
         "@graknlabs_graql//java:graql",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 java_test(
@@ -159,6 +170,7 @@ java_test(
         "//test-integration/rule:grakn-test-server",
         "@graknlabs_graql//java:graql",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 java_test(
@@ -174,6 +186,7 @@ java_test(
         "//test-integration/rule:grakn-test-server",
         "@graknlabs_graql//java:graql",
     ],
+    classpath_resources = ["//test-integration/resources:logback-test"],
 )
 
 
@@ -205,6 +218,6 @@ checkstyle_test(
         ":query-error-it",
         ":query-planner-it",
         ":query-validity-it",
-        ":type-conversion-it",
+        ":number-casting-it",
     ],
 )

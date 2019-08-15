@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -41,7 +41,7 @@ public class TemporaryWriteException extends GraknServerException {
 
     /**
      * Thrown when the persistence layer is locked temporarily.
-     * Retrying the transaction is reccomended.
+     * Retrying the transaction is recommended.
      */
     public static TemporaryWriteException temporaryLock(Exception e){
         return new TemporaryWriteException(LOCKING_EXCEPTION.getMessage(), e);

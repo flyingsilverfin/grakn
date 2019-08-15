@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -33,7 +33,7 @@ import grakn.core.concept.type.SchemaConcept;
 import grakn.core.concept.type.Type;
 import grakn.core.server.exception.TransactionException;
 import grakn.core.server.kb.Schema;
-import grakn.core.server.kb.cache.Cache;
+import grakn.core.server.kb.Cache;
 import grakn.core.server.kb.structure.Casting;
 import grakn.core.server.kb.structure.EdgeElement;
 import grakn.core.server.kb.structure.VertexElement;
@@ -48,6 +48,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static grakn.core.server.kb.Schema.EdgeProperty.ROLE_LABEL_ID;
@@ -65,6 +66,8 @@ import static java.util.stream.Collectors.toSet;
  *            For example EntityType or RelationType
  */
 public abstract class ThingImpl<T extends Thing, V extends Type> extends ConceptImpl implements Thing {
+
+    private Boolean isInferred = null;
 
     private final Cache<V> cachedType = new Cache<>(() -> {
         Optional<V> type = vertex().getEdgesOfType(Direction.OUT, Schema.EdgeLabel.ISA).
@@ -97,7 +100,11 @@ public abstract class ThingImpl<T extends Thing, V extends Type> extends Concept
     }
 
     public boolean isInferred() {
-        return vertex().propertyBoolean(Schema.VertexProperty.IS_INFERRED);
+        //NB: might be over the top to cache it
+        if (isInferred == null) {
+            isInferred = vertex().propertyBoolean(Schema.VertexProperty.IS_INFERRED);
+        }
+        return isInferred;
     }
 
     /**
@@ -113,10 +120,15 @@ public abstract class ThingImpl<T extends Thing, V extends Type> extends Concept
             return relation;
         }).collect(toSet());
 
+        if (!isDeleted()) vertex().tx().statisticsDelta().decrement(type().label());
+        this.edgeRelations().forEach(Concept::delete);
+
         vertex().tx().cache().removedInstance(type().id());
+        vertex().tx().queryCache().ackDeletion(type());
         deleteNode();
 
         relations.forEach(relation -> {
+            //NB: this only deletes reified implicit relations
             if (relation.type().isImplicit()) {//For now implicit relations die
                 relation.delete();
             } else {
@@ -180,8 +192,8 @@ public abstract class ThingImpl<T extends Thing, V extends Type> extends Concept
      * @return All the Casting which this instance is cast into the role
      */
     Stream<Casting> castingsInstance() {
-        return vertex().getEdgesOfType(Direction.IN, Schema.EdgeLabel.ROLE_PLAYER).
-                map(edge -> Casting.withThing(edge, this));
+        return vertex().getEdgesOfType(Direction.IN, Schema.EdgeLabel.ROLE_PLAYER)
+                .map(edge -> Casting.withThing(edge, this));
     }
 
     private Set<Integer> implicitLabelsToIds(Set<Label> labels, Set<Schema.ImplicitType> implicitTypes) {
@@ -272,8 +284,12 @@ public abstract class ThingImpl<T extends Thing, V extends Type> extends Concept
 
         if (!roleSet.isEmpty()) {
             stream = stream.filter(edge -> {
-                Role roleOwner = vertex().tx().getSchemaConcept(LabelId.of(edge.property(Schema.EdgeProperty.RELATION_ROLE_OWNER_LABEL_ID)));
-                return roleSet.contains(roleOwner);
+                Set<Role> edgeRoles = new HashSet<>();
+                edgeRoles.add(vertex().tx().getSchemaConcept(LabelId.of(edge.property(Schema.EdgeProperty.RELATION_ROLE_OWNER_LABEL_ID))));
+                if (this.isAttribute()){
+                    edgeRoles.add(vertex().tx().getSchemaConcept(LabelId.of(edge.property(Schema.EdgeProperty.RELATION_ROLE_VALUE_LABEL_ID))));
+                }
+                return !Sets.intersection(roleSet, edgeRoles).isEmpty();
             });
         }
 
@@ -291,9 +307,8 @@ public abstract class ThingImpl<T extends Thing, V extends Type> extends Concept
         return getThis();
     }
 
-    public T attributeInferred(Attribute attribute) {
-        attributeRelation(attribute, true);
-        return getThis();
+    public Relation attributeInferred(Attribute attribute) {
+        return attributeRelation(attribute, true);
     }
 
     @Override
@@ -324,7 +339,12 @@ public abstract class ThingImpl<T extends Thing, V extends Type> extends Concept
 
         EdgeElement attributeEdge = addEdge(AttributeImpl.from(attribute), Schema.EdgeLabel.ATTRIBUTE);
         if (isInferred) attributeEdge.property(Schema.EdgeProperty.IS_INFERRED, true);
-        return vertex().tx().factory().buildRelation(attributeEdge, hasAttribute, hasAttributeOwner, hasAttributeValue);
+
+        vertex().tx().statisticsDelta().increment(hasAttribute.label());
+
+        RelationImpl attributeRelation = vertex().tx().factory().buildRelation(attributeEdge, hasAttribute, hasAttributeOwner, hasAttributeValue);
+        if (isInferred) vertex().tx().cache().inferredInstance(attributeRelation);
+        return attributeRelation;
     }
 
     @Override

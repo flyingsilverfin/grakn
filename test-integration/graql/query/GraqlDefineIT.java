@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -27,8 +27,7 @@ import grakn.core.concept.type.AttributeType;
 import grakn.core.concept.type.EntityType;
 import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
-import grakn.core.graql.exception.GraqlQueryException;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.graph.MovieGraph;
 import grakn.core.rule.GraknTestServer;
 import grakn.core.server.exception.InvalidKBException;
@@ -39,7 +38,6 @@ import graql.lang.pattern.Pattern;
 import graql.lang.query.GraqlDefine;
 import graql.lang.query.MatchClause;
 import graql.lang.statement.Statement;
-import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -246,7 +244,7 @@ public class GraqlDefineIT {
     }
 
     @Test
-    public void testKey() {
+    public void whenDefiningAKey_appropriateSchemaConceptsAreCreated() {
         String resourceType = "a-new-resource-type";
 
         tx.execute(Graql.define(
@@ -275,7 +273,7 @@ public class GraqlDefineIT {
     }
 
     @Test
-    public void testResourceTypeRegex() {
+    public void whenDefiningResourceTypeWithRegex_regexIsAppliedCorrectly() {
         tx.execute(Graql.define(type("greeting").sub(Graql.Token.Type.ATTRIBUTE).datatype(Graql.Token.DataType.STRING).regex("hello|good day")));
 
         MatchClause match = Graql.match(var("x").type("greeting"));
@@ -306,18 +304,32 @@ public class GraqlDefineIT {
     }
 
     @Test
-    public void whenDefiningARule_TheRuleIsInTheKB() {
+    public void whenDefiningARuleUsingParsedPatterns_ruleIsPersistedCorrectly() {
         Pattern when = Graql.parsePattern("$x isa entity;");
         Pattern then = Graql.parsePattern("$x isa entity;");
-        Statement vars = type("my-rule").sub(Graql.Token.Type.RULE).when(when).then(then);
-        tx.execute(Graql.define(vars));
+        Statement rule = type("my-rule").sub(Graql.Token.Type.RULE).when(when).then(then);
+        tx.execute(Graql.define(rule));
 
         assertNotNull(tx.getRule("my-rule"));
     }
 
     @Test
-    public void testErrorResourceTypeWithoutDataType() {
-        exception.expect(GraqlQueryException.class);
+    public void whenDefiningARuleUsingCoreAPI_ruleIsPersistedCorrectly(){
+        tx.execute(Graql.define(type("good-movie").sub("movie")));
+        GraqlDefine ruleDefinition = Graql.define(
+                type("high-average-movies-are-good").sub("rule")
+                        .when(
+                                var("m").isa("movie").has("tmdb-vote-average", Graql.gte(7.5)))
+                        .then(
+                                var("m").isa("good-movie")
+                )
+        );
+        tx.execute(ruleDefinition);
+    }
+
+    @Test
+    public void whenDefiningAttributeTypeWithoutDataType_weThrow() {
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(
                 allOf(containsString("my-resource"), containsString("datatype"), containsString("resource"))
         );
@@ -325,22 +337,22 @@ public class GraqlDefineIT {
     }
 
     @Test
-    public void testErrorRecursiveType() {
-        exception.expect(GraqlQueryException.class);
+    public void whenDefiningRecursiveTypes_weThrow() {
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(allOf(containsString("thingy"), containsString("itself")));
         tx.execute(Graql.define(type("thingy").sub("thingy")));
     }
 
     @Test
     public void whenDefiningAnOntologyConceptWithoutALabel_Throw() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(allOf(containsString("entity"), containsString("type")));
         tx.execute(Graql.define(var().sub("entity")));
     }
 
     @Test
-    public void testErrorWhenNonExistentResource() {
-        exception.expect(GraqlQueryException.class);
+    public void whenATypeHasNonExistentResource_weThrow() {
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage("nothing");
         tx.execute(Graql.define(type("blah this").sub("entity").has("nothing")));
     }
@@ -356,9 +368,9 @@ public class GraqlDefineIT {
     public void whenSpecifyingExistingTypeWithIncorrectDataType_Throw() {
         AttributeType name = tx.getAttributeType("name");
 
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(
-                GraqlQueryException.insertPropertyOnExistingConcept("datatype", AttributeType.DataType.BOOLEAN, name).getMessage()
+                GraqlSemanticException.insertPropertyOnExistingConcept("datatype", AttributeType.DataType.BOOLEAN, name).getMessage()
         );
 
         tx.execute(Graql.define(type("name").datatype(Graql.Token.DataType.BOOLEAN)));
@@ -366,9 +378,9 @@ public class GraqlDefineIT {
 
     @Test
     public void whenSpecifyingDataTypeOnAnEntityType_Throw() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(
-                allOf(containsString("unexpected property"), containsString("datatype"), containsString("my-type"))
+                allOf(containsString("Unexpected property"), containsString("datatype"), containsString("my-type"))
         );
 
         tx.execute(Graql.define(type("my-type").sub("entity").datatype(Graql.Token.DataType.BOOLEAN)));
@@ -376,14 +388,14 @@ public class GraqlDefineIT {
 
     @Test
     public void whenDefiningRuleWithoutWhen_Throw() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(allOf(containsString("rule"), containsString("movie"), containsString("when")));
         tx.execute(Graql.define(type("a-rule").sub(Graql.Token.Type.RULE).then(var("x").isa("movie"))));
     }
 
     @Test
     public void whenDefiningRuleWithoutThen_Throw() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(allOf(containsString("rule"), containsString("movie"), containsString("then")));
         tx.execute(Graql.define(type("a-rule").sub(Graql.Token.Type.RULE).when(var("x").isa("movie"))));
     }
@@ -392,12 +404,12 @@ public class GraqlDefineIT {
     public void whenDefiningANonRuleWithAWhenPattern_Throw() {
         Statement rule = type("yes").sub(Graql.Token.Type.ENTITY).when(var("x").isa("yes"));
 
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(anyOf(
                 // Either we see "entity" and an unexpected "when"...
                 allOf(containsString("unexpected property"), containsString("when")),
                 // ...or we see "when" and don't find the expected "then"
-                containsString(GraqlQueryException.insertNoExpectedProperty("then", rule).getMessage()))
+                containsString(GraqlSemanticException.insertNoExpectedProperty("then", rule).getMessage()))
         );
 
         tx.execute(Graql.define(rule));
@@ -407,12 +419,12 @@ public class GraqlDefineIT {
     public void whenDefiningANonRuleWithAThenPattern_Throw() {
         Statement rule = type("some-type").sub(Graql.Token.Type.ENTITY).then(var("x").isa("some-type"));
 
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(anyOf(
                 // Either we see "entity" and an unexpected "when"...
                 allOf(containsString("unexpected property"), containsString("then")),
                 // ...or we see "when" and don't find the expected "then"
-                containsString(GraqlQueryException.insertNoExpectedProperty("when", rule).getMessage()))
+                containsString(GraqlSemanticException.insertNoExpectedProperty("when", rule).getMessage()))
         );
 
         tx.execute(Graql.define(rule));
@@ -420,8 +432,8 @@ public class GraqlDefineIT {
 
     @Test
     public void whenDefiningAThing_Throw() {
-        exception.expect(GraqlQueryException.class);
-        exception.expectMessage(GraqlQueryException.defineUnsupportedProperty(Graql.Token.Property.ISA.toString()).getMessage());
+        exception.expect(GraqlSemanticException.class);
+        exception.expectMessage(GraqlSemanticException.defineUnsupportedProperty(Graql.Token.Property.ISA.toString()).getMessage());
 
         tx.execute(Graql.define(var("x").isa("movie")));
     }
@@ -430,10 +442,10 @@ public class GraqlDefineIT {
     public void whenModifyingAThingInADefineQuery_Throw() {
         ConceptId id = tx.getEntityType("movie").instances().iterator().next().id();
 
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(anyOf(
-                is(GraqlQueryException.defineUnsupportedProperty(Graql.Token.Property.HAS.toString()).getMessage()),
-                is(GraqlQueryException.defineUnsupportedProperty(Graql.Token.Property.VALUE.toString()).getMessage())
+                is(GraqlSemanticException.defineUnsupportedProperty(Graql.Token.Property.HAS.toString()).getMessage()),
+                is(GraqlSemanticException.defineUnsupportedProperty(Graql.Token.Property.VALUE.toString()).getMessage())
         ));
 
         tx.execute(Graql.define(var().id(id.getValue()).has("title", "Bob")));
@@ -530,7 +542,7 @@ public class GraqlDefineIT {
                 exist = !tx.execute(Graql.match(var)).isEmpty();
                 if (!exist) break;
             }
-        } catch(GraqlQueryException e){
+        } catch(GraqlSemanticException e){
             exist = false;
         }
         return exist;

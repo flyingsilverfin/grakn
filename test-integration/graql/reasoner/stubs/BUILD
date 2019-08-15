@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -22,6 +22,7 @@ filegroup(
     name = "reasoning-stubs",
     srcs = [
         "appendingRPs.gql",
+        "duplicateMaterialisation.gql",
         "explanations.gql",
         "freshEntityDerivation.gql",
         "freshEntityDerivationFromRelations.gql",

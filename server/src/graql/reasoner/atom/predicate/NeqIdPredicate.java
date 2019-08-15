@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -31,13 +31,13 @@ import java.util.stream.Collectors;
 /**
  *
  * <p>
- * Predicate implementation specialising it to be an inequality predicate. Corresponds to graql {@link NeqProperty}.
+ * Predicate implementation specialising it to be an inequality predicate. Corresponds to graql NeqProperty.
  * </p>
  *
  *
  */
 
-public class NeqIdPredicate extends NeqPredicate {
+public class NeqIdPredicate extends VariablePredicate {
 
     private NeqIdPredicate(Variable varName, Variable predicateVar, Statement pattern, ReasonerQuery parentQuery) {
         super(varName, predicateVar, pattern, parentQuery);

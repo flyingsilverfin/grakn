@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -27,6 +27,7 @@ import grakn.core.concept.thing.Relation;
 import grakn.core.concept.thing.Thing;
 import grakn.core.concept.type.Role;
 import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.executor.WriteExecutor;
 import grakn.core.graql.gremlin.EquivalentFragmentSet;
 import grakn.core.graql.gremlin.sets.EquivalentFragmentSets;
@@ -48,7 +49,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static grakn.core.common.util.CommonUtil.toImmutableSet;
 import static grakn.core.graql.gremlin.sets.EquivalentFragmentSets.rolePlayer;
 import static grakn.core.graql.reasoner.utils.ReasonerUtils.getUserDefinedIdPredicate;
 
@@ -71,13 +71,13 @@ public class RelationExecutor implements PropertyExecutor.Insertable {
             Variable castingName = new Variable();
             castingNames.add(castingName);
             return fragmentSetsFromRolePlayer(castingName, relationPlayer);
-        }).collect(toImmutableSet());
+        }).collect(ImmutableSet.toImmutableSet());
 
         ImmutableSet<EquivalentFragmentSet> distinctCastingTraversals = castingNames.stream().flatMap(
                 castingName -> castingNames.stream()
                         .filter(otherName -> !otherName.equals(castingName))
                         .map(otherName -> EquivalentFragmentSets.neq(property, castingName, otherName))
-        ).collect(toImmutableSet());
+        ).collect(ImmutableSet.toImmutableSet());
 
         return Sets.union(traversals, distinctCastingTraversals);
     }
@@ -202,7 +202,7 @@ public class RelationExecutor implements PropertyExecutor.Insertable {
         }
 
         private Statement getRole(RelationProperty.RolePlayer relationPlayer) {
-            return relationPlayer.getRole().orElseThrow(GraqlQueryException::insertRolePlayerWithoutRoleType);
+            return relationPlayer.getRole().orElseThrow(GraqlSemanticException::insertRolePlayerWithoutRoleType);
         }
     }
 }

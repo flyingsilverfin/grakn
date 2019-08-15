@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,19 +18,18 @@
 
 package grakn.core.server.kb.concept;
 
-import grakn.core.common.util.CommonUtil;
 import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
 import grakn.core.concept.type.Type;
 import grakn.core.server.kb.Schema;
-import grakn.core.server.kb.cache.Cache;
+import grakn.core.server.kb.Cache;
 import grakn.core.server.kb.structure.Casting;
 import grakn.core.server.kb.structure.VertexElement;
-import org.apache.tinkerpop.gremlin.structure.Direction;
-
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.tinkerpop.gremlin.structure.Direction;
 
 /**
  * An SchemaConcept which defines a Role which can be played in a RelationType.
@@ -73,7 +72,7 @@ public class RoleImpl extends SchemaConceptImpl<Role> implements Role {
      * @param newRelationType The new relation type to cache in the role.
      */
     void addCachedRelationType(RelationType newRelationType) {
-        cachedRelationTypes.ifPresent(set -> set.add(newRelationType));
+        cachedRelationTypes.ifCached(set -> set.add(newRelationType));
     }
 
     /**
@@ -83,7 +82,7 @@ public class RoleImpl extends SchemaConceptImpl<Role> implements Role {
      * @param oldRelationType The new relation type to cache in the role.
      */
     void deleteCachedRelationType(RelationType oldRelationType) {
-        cachedRelationTypes.ifPresent(set -> set.remove(oldRelationType));
+        cachedRelationTypes.ifCached(set -> set.remove(oldRelationType));
     }
 
     /**
@@ -95,22 +94,22 @@ public class RoleImpl extends SchemaConceptImpl<Role> implements Role {
     }
 
     void addCachedDirectPlaysByType(Type newType) {
-        cachedDirectPlayedByTypes.ifPresent(set -> set.add(newType));
+        cachedDirectPlayedByTypes.ifCached(set -> set.add(newType));
     }
 
     void deleteCachedDirectPlaysByType(Type oldType) {
-        cachedDirectPlayedByTypes.ifPresent(set -> set.remove(oldType));
+        cachedDirectPlayedByTypes.ifCached(set -> set.remove(oldType));
     }
 
     /**
      * @return Get all the roleplayers of this role type
      */
     public Stream<Casting> rolePlayers() {
-        return relations().
-                flatMap(RelationType::instances).
-                map(relation -> RelationImpl.from(relation).reified()).
-                flatMap(CommonUtil::optionalToStream).
-                flatMap(relation -> relation.castingsRelation(this));
+        return relations()
+                .flatMap(RelationType::instances)
+                .map(relation -> RelationImpl.from(relation).reified())
+                .filter(Objects::nonNull)
+                .flatMap(relation -> relation.castingsRelation(this));
     }
 
     @Override

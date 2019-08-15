@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -26,13 +26,14 @@ import grakn.core.concept.Concept;
 import grakn.core.concept.ConceptId;
 import grakn.core.concept.Label;
 import grakn.core.concept.answer.ConceptMap;
+import grakn.core.concept.answer.Numeric;
 import grakn.core.concept.thing.Attribute;
 import grakn.core.concept.thing.Entity;
 import grakn.core.concept.thing.Relation;
 import grakn.core.concept.thing.Thing;
 import grakn.core.concept.type.EntityType;
 import grakn.core.concept.type.Role;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.graph.MovieGraph;
 import grakn.core.rule.GraknTestServer;
 import grakn.core.server.exception.InvalidKBException;
@@ -42,7 +43,6 @@ import graql.lang.Graql;
 import graql.lang.exception.GraqlException;
 import graql.lang.pattern.Pattern;
 import graql.lang.property.IsaProperty;
-import graql.lang.query.GraqlGet;
 import graql.lang.query.GraqlInsert;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
@@ -64,12 +64,15 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static grakn.core.util.GraqlTestUtil.assertCollectionsNonTriviallyEqual;
 import static grakn.core.util.GraqlTestUtil.assertExists;
 import static grakn.core.util.GraqlTestUtil.assertNotExists;
+import static graql.lang.Graql.insert;
 import static graql.lang.Graql.type;
 import static graql.lang.Graql.var;
 import static graql.lang.exception.ErrorMessage.NO_PATTERNS;
 import static java.util.stream.Collectors.toSet;
+import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -216,6 +219,7 @@ public class GraqlInsertIT {
         assertNotExists(tx, language2);
     }
 
+
     @Test
     public void testIterateInsertResults() {
         GraqlInsert insert = Graql.insert(
@@ -248,7 +252,7 @@ public class GraqlInsertIT {
 
     @Test
     public void testErrorWhenInsertWithPredicate() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage("predicate");
         tx.execute(Graql.insert(var().id("123").gt(3)));
     }
@@ -264,10 +268,10 @@ public class GraqlInsertIT {
     public void whenInsertingAResourceWithMultipleValues_Throw() {
         Statement varPattern = var().val("123").val("456").isa("title");
 
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(isOneOf(
-                GraqlQueryException.insertMultipleProperties(varPattern, "", "123", "456").getMessage(),
-                GraqlQueryException.insertMultipleProperties(varPattern, "", "456", "123").getMessage()
+                GraqlSemanticException.insertMultipleProperties(varPattern, "", "123", "456").getMessage(),
+                GraqlSemanticException.insertMultipleProperties(varPattern, "", "456", "123").getMessage()
         ));
 
         tx.execute(Graql.insert(varPattern));
@@ -395,7 +399,7 @@ public class GraqlInsertIT {
 
     @Test
     public void testErrorWhenInsertRelationWithEmptyRolePlayer() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(
                 allOf(containsString("$y"), containsString("id"), containsString("isa"), containsString("sub"))
         );
@@ -407,7 +411,7 @@ public class GraqlInsertIT {
 
     @Test
     public void testErrorWhenAddingInstanceOfConcept() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(
                 allOf(containsString("meta-type"), containsString("my-thing"), containsString(Graql.Token.Type.THING.toString()))
         );
@@ -416,7 +420,7 @@ public class GraqlInsertIT {
 
     @Test
     public void whenInsertingAResourceWithoutAValue_Throw() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(allOf(containsString("name")));
         tx.execute(Graql.insert(var("x").isa("name")));
     }
@@ -481,7 +485,7 @@ public class GraqlInsertIT {
 
     @Test
     public void testInsertInstanceWithoutType() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(allOf(containsString("isa")));
         tx.execute(Graql.insert(var().has("name", "Bob")));
     }
@@ -583,10 +587,10 @@ public class GraqlInsertIT {
         );
 
         // We don't know in what order the message will be
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         exception.expectMessage(isOneOf(
-                GraqlQueryException.insertMultipleProperties(varPattern, "isa", movie, person).getMessage(),
-                GraqlQueryException.insertMultipleProperties(varPattern, "isa", person, movie).getMessage()
+                GraqlSemanticException.insertMultipleProperties(varPattern, "isa", movie, person).getMessage(),
+                GraqlSemanticException.insertMultipleProperties(varPattern, "isa", person, movie).getMessage()
         ));
 
         tx.execute(Graql.insert(var("x").isa("movie"), var("x").isa("person")));
@@ -599,26 +603,104 @@ public class GraqlInsertIT {
 
         Concept aMovie = movie.instances().iterator().next();
 
-        exception.expect(GraqlQueryException.class);
-        exception.expectMessage(GraqlQueryException.insertPropertyOnExistingConcept("isa", person, aMovie).getMessage());
+        exception.expect(GraqlSemanticException.class);
+        exception.expectMessage(GraqlSemanticException.insertPropertyOnExistingConcept("isa", person, aMovie).getMessage());
 
         tx.execute(Graql.insert(var("x").id(aMovie.id().getValue()).isa("person")));
     }
 
     @Test
     public void whenInsertingASchemaConcept_Throw() {
-        exception.expect(GraqlQueryException.class);
-        exception.expectMessage(GraqlQueryException.insertUnsupportedProperty(Graql.Token.Property.SUB.toString()).getMessage());
+        exception.expect(GraqlSemanticException.class);
+        exception.expectMessage(GraqlSemanticException.insertUnsupportedProperty(Graql.Token.Property.SUB.toString()).getMessage());
 
         tx.execute(Graql.insert(type("new-type").sub(Graql.Token.Type.ENTITY)));
     }
 
     @Test
     public void whenModifyingASchemaConceptInAnInsertQuery_Throw() {
-        exception.expect(GraqlQueryException.class);
-        exception.expectMessage(GraqlQueryException.insertUnsupportedProperty(Graql.Token.Property.PLAYS.toString()).getMessage());
+        exception.expect(GraqlSemanticException.class);
+        exception.expectMessage(GraqlSemanticException.insertUnsupportedProperty(Graql.Token.Property.PLAYS.toString()).getMessage());
 
         tx.execute(Graql.insert(type("movie").plays("actor")));
+    }
+
+
+    // ------ match-insert the same resource/extending resources tests
+    @Test
+    public void whenMatchInsertingExistingConcept_weDoNoOp() {
+        Statement matchStatement = var("x").isa("movie");
+        Statement insertStatement = var("x");
+
+        List<ConceptMap> before = tx.execute(Graql.match(matchStatement));
+        tx.execute(Graql.match(matchStatement).insert(insertStatement));
+        assertCollectionsNonTriviallyEqual(before, tx.execute(Graql.match(matchStatement)));
+    }
+    @Test
+    public void whenMatchInsertingExistingEntity_weDoNoOp() {
+        Statement matchStatement = var("x").isa("movie");
+        Statement insertStatement = var("x").isa("movie");
+
+        List<ConceptMap> before = tx.execute(Graql.match(matchStatement));
+        tx.execute(Graql.match(matchStatement).insert(insertStatement));
+        assertCollectionsNonTriviallyEqual(before, tx.execute(Graql.match(matchStatement)));
+    }
+
+    @Test
+    public void whenMatchInsertingExistingRelation_weDoNoOp() {
+        Statement matchStatement = var("r").isa("directed-by");
+        Statement insertStatement = var("r").isa("directed-by");
+
+        List<ConceptMap> before = tx.execute(Graql.match(matchStatement));
+        tx.execute(Graql.match(matchStatement).insert(insertStatement));
+        assertCollectionsNonTriviallyEqual(before, tx.execute(Graql.match(matchStatement)));
+    }
+
+    @Test
+    public void whenMatchInsertingExistingAttribute_weDoNoOp() {
+        Statement matchStatement = var("a").isa("name");
+        Statement insertStatement = var("a").isa("name");
+        List<ConceptMap> before = tx.execute(Graql.match(matchStatement));
+        tx.execute(Graql.match(matchStatement).insert(insertStatement));
+        assertCollectionsNonTriviallyEqual(before, tx.execute(Graql.match(matchStatement)));
+    }
+
+    @Test
+    public void whenAppendingRolePlayerToARelation_additionIsSuccessful() {
+        Statement matchStatement = var("r").isa("directed-by");
+        Statement insertStatement = var("r").rel("director", "player");
+        Statement insertStatement2 = var("player").isa("person");
+        tx.execute(Graql.match(matchStatement).insert(insertStatement, insertStatement2));
+    }
+
+    @Test
+    public void whenAppendingRolePlayerToASpecificRelation_additionIsSuccessful() {
+        Set<Statement> matchStatements = Sets.newHashSet(
+                var("r").rel("production-being-directed", var("x")).isa("directed-by"),
+                var("x").has("title", "Chinese Coffee")
+        );
+        Set<Statement> insertStatements = Sets.newHashSet(
+                var("y").isa("person"),
+                var("r").rel("director", var("y"))
+        );
+        ConceptMap answer = Iterables.getOnlyElement(tx.execute(Graql.match(matchStatements).insert(insertStatements)));
+
+        assertTrue(
+                tx.getConcept(answer.get("r").id()).asRelation().rolePlayers().anyMatch(rp -> rp.id().equals(answer.get("y").id()))
+        );
+    }
+
+    @Test
+    public void whenAddingNewAttributeOwner_operationIsSuccessful() {
+        Statement matchStatement = var("x").isa("production").has("title", var("attr"));
+        Statement insertStatement = var("newProduction").isa("production").has("title", var("attr"));
+        List<Numeric> oldCount = tx.execute(Graql.match(matchStatement).get("x").count());
+
+        tx.execute(Graql.match(matchStatement).insert(insertStatement));
+
+        // expect there to be twice as many productions with titles!
+        List<Numeric> newCount = tx.execute(Graql.match(matchStatement).get("x").count());
+        assertEquals(oldCount.get(0).number().intValue() * 2, newCount.get(0).number().intValue());
     }
 
     private void assertInsert(Statement... vars) {

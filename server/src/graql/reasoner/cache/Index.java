@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -27,7 +27,7 @@ import java.util.Set;
 
 /**
  *
- * Index for {@link IndexedAnswerSet}. Corresponds to a set of variables which partial substitutions need to map.
+ * Index for IndexedAnswerSet. Corresponds to a set of variables which partial substitutions need to map.
  *
  */
 public class Index{

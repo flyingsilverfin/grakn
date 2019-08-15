@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -34,11 +34,9 @@ import grakn.core.server.kb.structure.Shard;
 import grakn.core.server.kb.structure.VertexElement;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.pattern.Pattern;
-import javax.annotation.Nullable;
 import org.apache.tinkerpop.gremlin.structure.Direction;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Vertex;
-import org.janusgraph.core.JanusGraph;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -57,11 +55,9 @@ import static grakn.core.server.kb.Schema.BaseType.RELATION_TYPE;
  */
 public final class ElementFactory {
     private final TransactionOLTP tx;
-    private final JanusGraph graph;
 
-    public ElementFactory(TransactionOLTP tx, JanusGraph graph) {
+    public ElementFactory(TransactionOLTP tx) {
         this.tx = tx;
-        this.graph = graph;
     }
 
     private <X extends Concept, E extends AbstractElement> X getOrBuildConcept(E element, ConceptId conceptId, Function<E, X> conceptBuilder) {
@@ -117,6 +113,7 @@ public final class ElementFactory {
     /**
      * Used by RelationEdge when it needs to reify a relation.
      * Used by this factory when need to build an explicit relation
+     *
      * @return ReifiedRelation
      */
     RelationReified buildRelationReified(VertexElement vertex, RelationType type) {
@@ -126,6 +123,7 @@ public final class ElementFactory {
     /**
      * Used by RelationTypeImpl to create a new instance of RelationImpl
      * first build a ReifiedRelation and then inject it to RelationImpl
+     *
      * @return
      */
     RelationImpl buildRelation(VertexElement vertex, RelationType type) {
@@ -288,9 +286,10 @@ public final class ElementFactory {
     /**
      * Builds a VertexElement from an already existing Vertex.
      * *
-     * @throws TransactionException if vertex is not valid. A vertex is not valid if it is null or has been deleted
+     *
      * @param vertex A vertex which can possibly be turned into a VertexElement
      * @return A VertexElement of
+     * @throws TransactionException if vertex is not valid. A vertex is not valid if it is null or has been deleted
      */
     public VertexElement buildVertexElement(Vertex vertex) {
         if (!tx.isValidElement(vertex)) {
@@ -300,31 +299,4 @@ public final class ElementFactory {
         return new VertexElement(tx, vertex);
     }
 
-    /**
-     * Creates a new Vertex in the graph and builds a VertexElement which wraps the newly created vertex
-     * @param baseType   The Schema.BaseType
-     * @return a new VertexElement
-     */
-    public VertexElement addVertexElement(Schema.BaseType baseType) {
-        Vertex vertex = graph.addVertex(baseType.name());
-        return new VertexElement(tx, vertex);
-    }
-
-    public static long assignVertexIdPropertyTime = 0;
-    /**
-     * Creates a new Vertex in the graph and builds a VertexElement which wraps the newly created vertex
-     * @param baseType   The Schema.BaseType
-     * @param conceptId the ConceptId to set as the new ConceptId
-     * @return a new VertexElement
-     *
-     * NB: this is only called when we reify an EdgeRelation - we want to preserve the ID property of the concept
-     */
-    public VertexElement addVertexElementWithEdgeIdProperty(Schema.BaseType baseType, ConceptId conceptId) {
-        Objects.requireNonNull(conceptId);
-        Vertex vertex = graph.addVertex(baseType.name());
-        long start = System.currentTimeMillis();
-        vertex.property(Schema.VertexProperty.EDGE_RELATION_ID.name(), conceptId.getValue());
-        assignVertexIdPropertyTime += System.currentTimeMillis() - start;
-        return new VertexElement(tx, vertex);
-    }
 }

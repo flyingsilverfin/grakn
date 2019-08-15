@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,7 +19,6 @@
 package grakn.core.graql.reasoner.plan;
 
 import com.google.common.base.Equivalence;
-import grakn.core.graql.reasoner.query.ReasonerQueryEquivalence;
 import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
 
 import java.util.Collection;
@@ -30,14 +29,14 @@ import java.util.stream.Collectors;
 /**
  *
  * <p>
- * Helper class for sets of {@link ReasonerQueryImpl} queries with equality comparison {@link ReasonerQueryEquivalence}.
+ * Helper class for sets of ReasonerQueryImpl queries with equality comparison ReasonerQueryEquivalence.
  * </p>
  *
  *
  */
 public class QuerySet extends QueryCollection<Set<ReasonerQueryImpl>, Set<Equivalence.Wrapper<ReasonerQueryImpl>>> {
 
-    QuerySet(Collection<ReasonerQueryImpl> queries){
+    private QuerySet(Collection<ReasonerQueryImpl> queries){
         this.collection = new HashSet<>(queries);
         this.wrappedCollection = queries.stream().map(q -> equality().wrap(q)).collect(Collectors.toSet());
     }

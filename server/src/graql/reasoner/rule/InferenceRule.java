@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -34,7 +34,7 @@ import grakn.core.graql.reasoner.query.ReasonerAtomicQuery;
 import grakn.core.graql.reasoner.query.ReasonerQueries;
 import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
 import grakn.core.graql.reasoner.query.ResolvableQuery;
-import grakn.core.graql.reasoner.state.QueryStateBase;
+import grakn.core.graql.reasoner.state.AnswerPropagatorState;
 import grakn.core.graql.reasoner.state.ResolutionState;
 import grakn.core.graql.reasoner.state.RuleState;
 import grakn.core.graql.reasoner.unifier.MultiUnifier;
@@ -48,18 +48,15 @@ import graql.lang.pattern.Pattern;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 
 /**
  *
  * <p>
- * Class providing resolution and higher level facilities for {@link Rule} objects.
+ * Class providing resolution and higher level facilities for Rule objects.
  * </p>
  *
  *
@@ -114,7 +111,7 @@ public class InferenceRule {
     /**
      * @return the priority with which the rule should be fired
      */
-    public long resolutionPriority(){
+    long resolutionPriority(){
         if (priority == Long.MAX_VALUE) {
             //NB: this has to be relatively lightweight as it is called on each rule
             //TODO come with a more useful metric
@@ -124,6 +121,8 @@ public class InferenceRule {
                     .map(Concept::asType)
                     .anyMatch(t -> t.thenRules().findFirst().isPresent());
             priority = bodyRuleResolvable? -1 : 0;
+            //resolve base types first
+            priority -= getHead().getAtom().getSchemaConcept().sups().count();
         }
         return priority;
     }
@@ -148,15 +147,16 @@ public class InferenceRule {
      * @return true if head satisfies the pattern specified in the body of the rule
      */
     boolean headSatisfiesBody(){
+        if (!getBody().isAtomic()) return false;
         Set<Atomic> atoms = new HashSet<>(getHead().getAtoms());
         Set<Variable> headVars = getHead().getVarNames();
         getBody().getAtoms(TypeAtom.class)
                 .filter(t -> !t.isRelation())
                 .filter(t -> !Sets.intersection(t.getVarNames(), headVars).isEmpty())
                 .forEach(atoms::add);
-        return getBody().isEquivalent(ReasonerQueries.create(atoms, tx));
+        return ReasonerQueries.create(atoms, tx).isEquivalent(getBody());
     }
-
+    
     /**
      * rule requires materialisation in the context of resolving parent atom
      * if parent atom requires materialisation, head atom requires materialisation or if the head contains only fresh variables
@@ -326,25 +326,13 @@ public class InferenceRule {
 
     private InferenceRule rewriteVariables(Atom parentAtom){
         if (parentAtom.isUserDefined() || parentAtom.requiresRoleExpansion()) {
-            ReasonerAtomicQuery rewrittenHead = ReasonerQueries.atomic(head.getAtom().rewriteToUserDefined(parentAtom));
-
-            Stream<Atom> bodyConjAtoms = getBody().isComposite()?
-                    getBody().asComposite().getConjunctiveQuery().getAtoms(Atom.class) : getBody().getAtoms(Atom.class);
-            //NB: only rewriting atoms from the same type hierarchy
-            List<Atom> rewrittenBodyConjAtoms = bodyConjAtoms
-                    .map(at ->
-                            ConceptUtils.areDisjointTypes(at.getSchemaConcept(), head.getAtom().getSchemaConcept(), false) ?
-                                    at : at.rewriteToUserDefined(parentAtom)
-                    )
-                    .collect(Collectors.toList());
-            ReasonerQueryImpl rewrittenBodyConj = ReasonerQueries.create(rewrittenBodyConjAtoms, tx);
-            ResolvableQuery rewrittenBody = getBody().isComposite() ?
-                    ReasonerQueries.composite(rewrittenBodyConj, getBody().asComposite().getComplementQueries(), tx) :
-                    rewrittenBodyConj;
-
             //NB we don't have to rewrite complements as we don't allow recursion atm
-
-            return new InferenceRule(rewrittenHead, rewrittenBody, rule, tx);
+            return new InferenceRule(
+                    ReasonerQueries.atomic(getHead().getAtom().rewriteToUserDefined(parentAtom)),
+                    getBody(),
+                    rule,
+                    tx
+            );
         }
         return this;
     }
@@ -391,9 +379,9 @@ public class InferenceRule {
      * @param ruleUnifier unifier with parent state
      * @param parent parent state
      * @param visitedSubGoals set of visited sub goals
-     * @return resolution subGoal formed from this rule
+     * @return resolution resolutionState formed from this rule
      */
-    public ResolutionState subGoal(Atom parentAtom, Unifier ruleUnifier, QueryStateBase parent, Set<ReasonerAtomicQuery> visitedSubGoals){
+    public ResolutionState subGoal(Atom parentAtom, Unifier ruleUnifier, AnswerPropagatorState parent, Set<ReasonerAtomicQuery> visitedSubGoals){
         Unifier ruleUnifierInverse = ruleUnifier.inverse();
 
         //delta' = theta . thetaP . delta

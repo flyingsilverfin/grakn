@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -20,7 +20,8 @@ package grakn.core.graql.gremlin.fragment;
 
 import com.google.common.collect.ImmutableSet;
 import grakn.core.concept.Label;
-import grakn.core.concept.type.Role;
+import grakn.core.graql.gremlin.spanningtree.graph.InstanceNode;
+import grakn.core.graql.gremlin.spanningtree.graph.Node;
 import grakn.core.graql.gremlin.spanningtree.graph.NodeId;
 import grakn.core.server.kb.Schema;
 import grakn.core.server.session.TransactionOLTP;
@@ -37,8 +38,8 @@ import static grakn.core.graql.gremlin.fragment.Fragments.displayOptionalTypeLab
 import static java.util.stream.Collectors.toSet;
 
 /**
- * Abstract class for the fragments that traverse {@link Schema.EdgeLabel#ROLE_PLAYER} edges: {@link InRolePlayerFragment} and
- * {@link OutRolePlayerFragment}.
+ * Abstract class for the fragments that traverse {@link Schema.EdgeLabel#ROLE_PLAYER} edges: InRolePlayerFragment and
+ * OutRolePlayerFragment.
  *
  */
 public abstract class AbstractRolePlayerFragment extends EdgeFragment {
@@ -78,9 +79,20 @@ public abstract class AbstractRolePlayerFragment extends EdgeFragment {
         return builder.build();
     }
 
+
     @Override
-    NodeId getMiddleNodeId() {
-        return NodeId.of(NodeId.NodeType.VAR, edge());
+    protected Node startNode() {
+        return new InstanceNode(NodeId.of(NodeId.Type.VAR, start()));
+    }
+
+    @Override
+    protected Node endNode() {
+        return new InstanceNode(NodeId.of(NodeId.Type.VAR, end()));
+    }
+
+    @Override
+    protected NodeId getMiddleNodeId() {
+        return NodeId.of(NodeId.Type.VAR, edge());
     }
 
 
@@ -96,7 +108,7 @@ public abstract class AbstractRolePlayerFragment extends EdgeFragment {
     }
 
     /**
-     * Optionally traverse from a {@link Schema.EdgeLabel#ROLE_PLAYER} edge to the {@link Role} it mentions, plus any super-types.
+     * Optionally traverse from a {@link Schema.EdgeLabel#ROLE_PLAYER} edge to the Role it mentions, plus any super-types.
      *
      * @param traversal the traversal, starting from the {@link Schema.EdgeLabel#ROLE_PLAYER}  edge
      * @param role the variable to assign to the role. If not present, do nothing

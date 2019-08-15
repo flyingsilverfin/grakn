@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -23,14 +23,12 @@ import grakn.core.graql.exception.GraqlQueryException;
 import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
 import grakn.core.graql.reasoner.unifier.MultiUnifier;
 import grakn.core.graql.reasoner.unifier.UnifierType;
-
 import graql.lang.statement.Variable;
-import java.util.Set;
-import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -77,11 +75,6 @@ public abstract class QueryCacheBase<
     }
 
     @Override
-    public CacheEntry<Q, SE> record(Q query, ConceptMap answer, @Nullable MultiUnifier unifier) {
-        return record(query, answer, null, unifier);
-    }
-
-    @Override
     public R getAnswers(Q query) { return getAnswersWithUnifier(query).getKey(); }
 
     @Override
@@ -103,20 +96,19 @@ public abstract class QueryCacheBase<
     }
 
     /**
-     * find specific answer to a query in the cache
-     *
-     * @param query input query
-     * @param ans   sought specific answer to the query
-     * @return found answer if any, otherwise empty answer
-     */
-    public abstract ConceptMap findAnswer(Q query, ConceptMap ans);
-
-    /**
      * @param query for which the entry is to be retrieved
      * @return corresponding cache entry if any or null
      */
     public CacheEntry<Q, SE> getEntry(Q query) {
         return cache.get(queryToKey(query));
+    }
+
+    /**
+     * @param query for which the entry is to be removed
+     * @return corresponding cache entry to which this map previously associated the key or null
+     */
+    CacheEntry<Q, SE> removeEntry(Q query) {
+        return cache.remove(queryToKey(query));
     }
 
     /**
@@ -136,7 +128,7 @@ public abstract class QueryCacheBase<
     }
 
     static <T extends ReasonerQueryImpl> void validateAnswer(ConceptMap answer, T query, Set<Variable> expectedVars){
-        if (!answer.vars().containsAll(expectedVars)
+        if (!answer.vars().equals(expectedVars)
                 || answer.explanation() == null
                 || (
                         !answer.explanation().isRuleExplanation()

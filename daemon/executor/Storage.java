@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -22,7 +22,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
-import com.google.common.collect.Maps;
 import grakn.core.common.config.Config;
 import grakn.core.common.config.ConfigKey;
 import grakn.core.common.config.SystemProperty;
@@ -62,10 +61,8 @@ import static grakn.core.daemon.executor.Executor.WAIT_INTERVAL_SECOND;
 public class Storage {
 
     private static final String DISPLAY_NAME = "Storage";
-    private static final String STORAGE_PROCESS_NAME = "CassandraDaemon";
     private static final long STORAGE_STARTUP_TIMEOUT_SECOND = 60;
     private static final Path STORAGE_PIDFILE = Paths.get(System.getProperty("java.io.tmpdir"), "grakn-storage.pid");
-    private static final Path STORAGE_DATA = Paths.get("server", "db", "cassandra");
     private static final String JAVA_OPTS = SystemProperty.STORAGE_JAVAOPTS.value();
 
     private static final String EMPTY_VALUE = "";
@@ -93,7 +90,8 @@ public class Storage {
     private void initialiseConfig() {
         try {
             ObjectMapper mapper = new ObjectMapper(new YAMLFactory().enable(YAMLGenerator.Feature.MINIMIZE_QUOTES));
-            TypeReference<Map<String, Object>> reference = new TypeReference<Map<String, Object>>() {};
+            TypeReference<Map<String, Object>> reference = new TypeReference<Map<String, Object>>() {
+            };
             ByteArrayOutputStream outputstream = new ByteArrayOutputStream();
 
             // Read the original Cassandra config from services/cassandra/cassandra.yaml into a String
@@ -102,10 +100,12 @@ public class Storage {
 
             // Convert the String of config values into a Map
             Map<String, Object> oldConfigMap = mapper.readValue(oldConfig, reference);
-            oldConfigMap = Maps.transformValues(oldConfigMap, value -> value == null ? EMPTY_VALUE : value);
 
-            // Set the original config as the starting point of the new config values
-            Map<String, Object> newConfigMap = new HashMap<>(oldConfigMap);
+            // Set the original config as the starting point of the new config values (replacing null with empty string)
+            Map<String, Object> newConfigMap = new HashMap<>();
+            oldConfigMap.forEach((key, value) -> {
+                newConfigMap.put(key, value == null ? EMPTY_VALUE : value);
+            });
 
             // Read the Grakn config which is available to the user
             Config inputConfig = Config.read(Paths.get(Objects.requireNonNull(SystemProperty.CONFIGURATION_FILE.value())));
@@ -124,7 +124,7 @@ public class Storage {
                             inputConfig.properties().getProperty(key)
                     ));
 
-            // Write the new Cassandra config into the original file:services/cassandra/cassandra.yaml
+            // Write the new Cassandra config into the original file: services/cassandra/cassandra.yaml
             mapper.writeValue(outputstream, newConfigMap);
             String newConfigStr = outputstream.toString(StandardCharsets.UTF_8.name());
             Files.write(Paths.get(STORAGE_CONFIG_PATH, STORAGE_CONFIG_NAME), newConfigStr.getBytes(StandardCharsets.UTF_8));
@@ -138,8 +138,9 @@ public class Storage {
      * Attempt to start Storage if it is not already running
      */
     public void startIfNotRunning() {
-        boolean isStorageRunning = daemonExecutor.isProcessRunning(STORAGE_PIDFILE);
-        if (isStorageRunning) {
+        boolean isProcessRunning = daemonExecutor.isProcessRunning(STORAGE_PIDFILE);
+        boolean isGraknStorageProcess = daemonExecutor.isAGraknProcess(STORAGE_PIDFILE, GraknStorage.class.getName());
+        if (isProcessRunning && isGraknStorageProcess) {
             System.out.println(DISPLAY_NAME + " is already running");
         } else {
             FileUtils.deleteQuietly(STORAGE_PIDFILE.toFile()); // delete dangling STORAGE_PIDFILE, if any
@@ -152,24 +153,20 @@ public class Storage {
     }
 
     public void status() {
-        daemonExecutor.processStatus(STORAGE_PIDFILE, DISPLAY_NAME);
-    }
-
-    public void statusVerbose() {
-        System.out.println(DISPLAY_NAME + " pid = '" + daemonExecutor.getPidFromFile(STORAGE_PIDFILE).orElse("") +
-                                   "' (from " + STORAGE_PIDFILE + "), '" + daemonExecutor.getPidFromPsOf(STORAGE_PROCESS_NAME) + "' (from ps -ef)");
+        daemonExecutor.processStatus(STORAGE_PIDFILE, DISPLAY_NAME, GraknStorage.class.getName());
     }
 
     public void clean() {
+        Path dataDir = Paths.get(graknProperties.getProperty(ConfigKey.DATA_DIR));
         System.out.print("Cleaning " + DISPLAY_NAME + "...");
         System.out.flush();
-        try (Stream<Path> files = Files.walk(STORAGE_DATA)) {
+        try (Stream<Path> files = Files.walk(dataDir)) {
             files.map(Path::toFile)
                     .sorted(Comparator.comparing(File::isDirectory))
                     .forEach(File::delete);
-            Files.createDirectories(graknHome.resolve(STORAGE_DATA).resolve("data"));
-            Files.createDirectories(graknHome.resolve(STORAGE_DATA).resolve("commitlog"));
-            Files.createDirectories(graknHome.resolve(STORAGE_DATA).resolve("saved_caches"));
+            Files.createDirectories(dataDir.resolve(DATA_SUBDIR));
+            Files.createDirectories(dataDir.resolve(SAVED_CACHES_SUBDIR));
+            Files.createDirectories(dataDir.resolve(COMMITLOG_SUBDIR));
             System.out.println("SUCCESS");
         } catch (IOException e) {
             System.out.println("FAILED!");
@@ -216,13 +213,17 @@ public class Storage {
             }
         }
 
-        System.out.println("FAILED!");
-        System.err.println("Unable to start " + DISPLAY_NAME + ".");
+
         try {
+            System.out.println("FAILED!");
+            System.err.println("Unable to start " + DISPLAY_NAME + ".");
             String errorMessage = "Process exited with code '" + result.get().exitCode() + "': '" + result.get().stderr() + "'";
             System.err.println(errorMessage);
             throw new GraknDaemonException(errorMessage);
-        } catch (InterruptedException | ExecutionException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new GraknDaemonException(e.getMessage(), e);
+        } catch (ExecutionException e) {
             throw new GraknDaemonException(e.getMessage(), e);
         }
     }
@@ -263,7 +264,6 @@ public class Storage {
         return Arrays.asList(
                 "java", "-cp", classpath,
                 "-Dlogback.configurationFile=" + logback,
-                //TODO: this needs to be removed or find lighter cassandra deps
                 NodeTool.class.getCanonicalName(),
                 "statusthrift"
         );

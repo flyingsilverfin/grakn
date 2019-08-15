@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -20,7 +20,6 @@ package grakn.core.graql.gremlin.fragment;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableSet;
-import grakn.core.graql.gremlin.EquivalentFragmentSet;
 import grakn.core.server.kb.Schema;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.statement.Variable;
@@ -44,7 +43,7 @@ import static grakn.core.server.kb.Schema.EdgeProperty.ROLE_LABEL_ID;
  * A fragment representing traversing a {@link Schema.EdgeLabel#ROLE_PLAYER} edge from the role-player to
  * the relation.
  * <p>
- * Part of a {@link EquivalentFragmentSet}, along with {@link OutRolePlayerFragment}.
+ * Part of a EquivalentFragmentSet, along with OutRolePlayerFragment.
  *
  */
 @AutoValue

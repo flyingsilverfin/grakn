@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -48,6 +48,12 @@ public interface Unifier{
      */
     @CheckReturnValue
     boolean isEmpty();
+
+    /**
+     * @return true if the unifier contains multi-valued mappings
+     */
+    @CheckReturnValue
+    boolean isNonInjective();
 
     /**
      * @return variables present in this unifier

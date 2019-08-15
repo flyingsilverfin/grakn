@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -29,7 +29,7 @@ import grakn.core.concept.type.EntityType;
 import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
 import grakn.core.concept.type.SchemaConcept;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.reasoner.graph.ReachabilityGraph;
 import grakn.core.graql.reasoner.utils.ReasonerUtils;
 import grakn.core.rule.GraknTestServer;
@@ -56,6 +56,7 @@ import static grakn.core.util.GraqlTestUtil.loadFromFileAndCommit;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static junit.framework.TestCase.assertEquals;
+import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 
 public class NegationIT {
@@ -88,7 +89,7 @@ public class NegationIT {
     @org.junit.Rule
     public final ExpectedException expectedException = ExpectedException.none();
 
-    @Test (expected = GraqlQueryException.class)
+    @Test (expected = GraqlSemanticException.class)
     public void whenNegatingSinglePattern_exceptionIsThrown () {
         try(TransactionOLTP tx = negationSession.transaction().write()) {
             Pattern pattern = Graql.parsePattern(
@@ -98,7 +99,7 @@ public class NegationIT {
         }
     }
 
-    @Test (expected = GraqlQueryException.class)
+    @Test (expected = GraqlSemanticException.class)
     public void whenExecutingUnboundNegationPattern_exceptionIsThrown () {
         try(TransactionOLTP tx = negationSession.transaction().write()) {
             Pattern pattern = Graql.parsePattern(
@@ -108,7 +109,7 @@ public class NegationIT {
         }
     }
 
-    @Test (expected = GraqlQueryException.class)
+    @Test (expected = GraqlSemanticException.class)
     public void whenIncorrectlyBoundNestedNegationBlock_exceptionIsThrown () {
         try(TransactionOLTP tx = negationSession.transaction().write()) {
             Pattern pattern = Graql.parsePattern(
@@ -126,7 +127,7 @@ public class NegationIT {
         }
     }
 
-    @Test (expected = GraqlQueryException.class)
+    @Test (expected = GraqlSemanticException.class)
     public void whenExecutingIncorrectlyBoundNestedNegationBlock_exceptionIsThrown () {
         try(TransactionOLTP tx = negationSession.transaction().write()) {
             Pattern pattern = Graql.parsePattern(
@@ -144,7 +145,7 @@ public class NegationIT {
         }
     }
 
-    @Test (expected = GraqlQueryException.class)
+    @Test (expected = GraqlSemanticException.class)
     public void whenNegationBlockContainsDisjunction_exceptionIsThrown(){
         try(TransactionOLTP tx = negationSession.transaction().write()) {
             Pattern pattern = Graql.parsePattern(
@@ -160,7 +161,7 @@ public class NegationIT {
         }
     }
 
-    @Test (expected = GraqlQueryException.class)
+    @Test (expected = GraqlSemanticException.class)
     public void whenExecutingNegationBlockContainingDisjunction_exceptionIsThrown () {
         try(TransactionOLTP tx = negationSession.transaction().write()) {
             Pattern pattern = Graql.parsePattern(
@@ -176,7 +177,7 @@ public class NegationIT {
         }
     }
 
-    @Test (expected = GraqlQueryException.class)
+    @Test (expected = GraqlSemanticException.class)
     public void whenExecutingNegationQueryWithReasoningOff_exceptionIsThrown () {
         try(TransactionOLTP tx = negationSession.transaction().write()) {
             Pattern pattern = Graql.parsePattern(
@@ -188,6 +189,22 @@ public class NegationIT {
                             "};"
             );
             tx.execute(Graql.match(pattern), false);
+        }
+    }
+
+    @Test
+    public void whenATypeInRuleNegationBlockIsAbsent_theRuleIsMatched() {
+        try (TransactionOLTP tx = negationSession.transaction().write()) {
+            assertFalse(tx.getAttributeType("absent-resource").instances().findFirst().isPresent());
+
+            List<ConceptMap> answers = tx.execute(Graql.<GraqlGet>parse(
+                    "match " +
+                            "$x has derived-resource-string 'no absent-resource attached';" +
+                            "get;"
+            ));
+            List<ConceptMap> explicitAnswers = tx.execute(Graql.<GraqlGet>parse("match $x isa someType;get;"));
+
+            assertCollectionsNonTriviallyEqual(explicitAnswers,answers);
         }
     }
 

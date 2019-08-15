@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -21,8 +21,8 @@ package grakn.core.server.kb.concept;
 import grakn.core.concept.Concept;
 import grakn.core.concept.ConceptId;
 import grakn.core.server.exception.TransactionException;
+import grakn.core.server.kb.Cache;
 import grakn.core.server.kb.Schema;
-import grakn.core.server.kb.cache.Cache;
 import grakn.core.server.kb.structure.EdgeElement;
 import grakn.core.server.kb.structure.Shard;
 import grakn.core.server.kb.structure.VertexElement;
@@ -186,7 +186,7 @@ public abstract class ConceptImpl implements Concept, ConceptVertex {
         currentShard.set(shard);
 
         //Updated the cached shard count if needed
-        if (shardCount.isPresent()) {
+        if (shardCount.isCached()) {
             shardCount.set(shardCount() + 1);
         }
     }

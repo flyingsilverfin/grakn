@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,8 +19,11 @@
 package grakn.core.graql.gremlin;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+import grakn.core.common.util.Tuple;
+import grakn.core.concept.type.Type;
 import grakn.core.graql.gremlin.fragment.Fragment;
 import grakn.core.graql.gremlin.fragment.InIsaFragment;
 import grakn.core.graql.gremlin.fragment.InSubFragment;
@@ -32,7 +35,6 @@ import grakn.core.graql.gremlin.spanningtree.graph.Node;
 import grakn.core.graql.gremlin.spanningtree.graph.NodeId;
 import grakn.core.graql.gremlin.spanningtree.graph.SparseWeightedGraph;
 import grakn.core.graql.gremlin.spanningtree.util.Weighted;
-import grakn.core.graql.reasoner.utils.Pair;
 import grakn.core.server.exception.GraknServerException;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.pattern.Conjunction;
@@ -55,9 +57,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static grakn.core.common.util.CommonUtil.toImmutableSet;
 import static grakn.core.graql.gremlin.NodesUtil.buildNodesWithDependencies;
-import static grakn.core.graql.gremlin.NodesUtil.nodeToPlanFragments;
+import static grakn.core.graql.gremlin.NodesUtil.nodeVisitedDependenciesFragments;
 import static grakn.core.graql.gremlin.RelationTypeInference.inferRelationTypes;
 import static grakn.core.graql.gremlin.fragment.Fragment.SHARD_LOAD_FACTOR;
 
@@ -66,7 +67,9 @@ import static grakn.core.graql.gremlin.fragment.Fragment.SHARD_LOAD_FACTOR;
  */
 public class TraversalPlanner {
 
-    protected static final Logger LOG = LoggerFactory.getLogger(TraversalPlanner.class);
+    private static final Logger LOG = LoggerFactory.getLogger(TraversalPlanner.class);
+
+    private static final int MAX_STARTING_POINTS = 3;
 
     /**
      * Create a traversal plan.
@@ -80,7 +83,7 @@ public class TraversalPlanner {
         Set<? extends List<Fragment>> fragments = patterns.stream()
                 .map(conjunction -> new ConjunctionQuery(conjunction, tx))
                 .map((ConjunctionQuery query) -> planForConjunction(query, tx))
-                .collect(toImmutableSet());
+                .collect(ImmutableSet.toImmutableSet());
 
         return GraqlTraversal.create(fragments);
     }
@@ -127,7 +130,7 @@ public class TraversalPlanner {
                if (unhandledNodes.size() != 1) {
                    throw GraknServerException.create("Query planner exception - expected one unhandled node, found " + unhandledNodes.size());
                }
-               plan.addAll(nodeToPlanFragments(Iterators.getOnlyElement(unhandledNodes.iterator()), queryGraphNodes, false));
+               plan.addAll(nodeVisitedDependenciesFragments(Iterators.getOnlyElement(unhandledNodes.iterator()), queryGraphNodes));
             }
         }
 
@@ -167,7 +170,7 @@ public class TraversalPlanner {
                 edgeFragmentSet.add(fragment);
                 // update the cost of an `InIsa` Fragment if we have some estimated cost
                 if (fragment instanceof InIsaFragment) {
-                    Node type = nodes.get(NodeId.of(NodeId.NodeType.VAR, fragment.start()));
+                    Node type = nodes.get(NodeId.of(NodeId.Type.VAR, fragment.start()));
                     if (nodesWithFixedCost.containsKey(type) && nodesWithFixedCost.get(type) > 0) {
                         fragment.setAccurateFragmentCost(nodesWithFixedCost.get(type));
                     }
@@ -181,14 +184,15 @@ public class TraversalPlanner {
         if (!weightedGraph.isEmpty()) {
             // sparse graph for better performance
             SparseWeightedGraph sparseWeightedGraph = SparseWeightedGraph.from(weightedGraph);
-            Set<Node> startingNodes = chooseStartingNodeSet(connectedFragments, nodes, sparseWeightedGraph);
+            Set<Node> startingNodes = chooseStartingNodeSet(connectedFragments, nodes, sparseWeightedGraph, tx);
 
             // find the minimum spanning tree for each root
             // then get the tree with minimum weight
             Arborescence<Node> arborescence = startingNodes.stream()
                     .map(node -> ChuLiuEdmonds.getMaxArborescence(sparseWeightedGraph, node))
                     .max(Comparator.comparingDouble(tree -> tree.weight))
-                    .map(arborescenceInside -> arborescenceInside.val).orElse(Arborescence.empty());
+                    .map(arborescenceInside -> arborescenceInside.val)
+                    .orElse(Arborescence.empty());
 
             return arborescence;
         } else {
@@ -207,26 +211,43 @@ public class TraversalPlanner {
         return weightedGraph;
     }
 
-    private static Set<Node> chooseStartingNodeSet(Set<Fragment> fragmentSet, Map<NodeId, Node> allNodes, SparseWeightedGraph sparseWeightedGraph) {
+    private static Set<Node> chooseStartingNodeSet(Set<Fragment> fragmentSet, Map<NodeId, Node> allNodes, SparseWeightedGraph sparseWeightedGraph, TransactionOLTP tx) {
         final Set<Node> highPriorityStartingNodeSet = new HashSet<>();
+        final Set<Node> lowPriorityStartingNodeSet = new HashSet<>();
 
-        fragmentSet.forEach(fragment -> {
-            if (fragment.hasFixedFragmentCost()) {
-                Node node = allNodes.get(NodeId.of(NodeId.NodeType.VAR, fragment.start()));
-                highPriorityStartingNodeSet.add(node);
-            }
-        });
+        fragmentSet.stream()
+                .filter(Fragment::hasFixedFragmentCost)
+                .sorted(Comparator.comparing(fragment -> fragment.estimatedCostAsStartingPoint(tx)))
+                .limit(MAX_STARTING_POINTS)
+                .forEach(fragment -> {
+                    Node node = allNodes.get(NodeId.of(NodeId.Type.VAR, fragment.start()));
+                    //TODO: this behaviour should be incorporated into the MST weight calculation
+                    if (fragment instanceof LabelFragment) {
+                        Type type = tx.getType(Iterators.getOnlyElement(((LabelFragment) fragment).labels().iterator()));
+                        if (type != null && type.isImplicit()) {
+                            // implicit types have low priority because their instances may be edges
+                            lowPriorityStartingNodeSet.add(node);
+                        } else {
+                            // other labels/types are the ideal starting point as they are indexed
+                            highPriorityStartingNodeSet.add(node);
+                        }
+                    } else {
+                        highPriorityStartingNodeSet.add(node);
+                    }
+                });
 
         Set<Node> startingNodes;
         if (!highPriorityStartingNodeSet.isEmpty()) {
             startingNodes = highPriorityStartingNodeSet;
         } else {
             // if we have no good starting points, use any valid nodes
-            startingNodes = sparseWeightedGraph.getNodes().stream()
-                    .filter(Node::isValidStartingPoint).collect(Collectors.toSet());
+            startingNodes = !lowPriorityStartingNodeSet.isEmpty()?
+                    lowPriorityStartingNodeSet :
+                    sparseWeightedGraph.getNodes().stream().filter(Node::isValidStartingPoint).collect(Collectors.toSet());
         }
         return startingNodes;
     }
+
 
     // add unvisited node fragments to plan
     private static List<Fragment> fragmentsForUnvisitedNodes(Map<NodeId, Node> allNodes, Collection<Node> connectedNodes) {
@@ -238,7 +259,7 @@ public class TraversalPlanner {
                         !node.getFragmentsWithDependencyVisited().isEmpty())
                 .collect(Collectors.toSet());
         while (!nodeWithFragment.isEmpty()) {
-            nodeWithFragment.forEach(node -> subplan.addAll(nodeToPlanFragments(node, allNodes, false)));
+            nodeWithFragment.forEach(node -> subplan.addAll(nodeVisitedDependenciesFragments(node, allNodes)));
             nodeWithFragment = connectedNodes.stream()
                     .filter(node -> !node.getFragmentsWithoutDependency().isEmpty() ||
                             !node.getFragmentsWithDependencyVisited().isEmpty())
@@ -304,9 +325,9 @@ public class TraversalPlanner {
 
         Set<Fragment> validSubFragments = fragments.stream().filter(fragment -> {
             if (fragment instanceof InSubFragment) {
-                Node superType = allNodes.get(NodeId.of(NodeId.NodeType.VAR, fragment.start()));
+                Node superType = allNodes.get(NodeId.of(NodeId.Type.VAR, fragment.start()));
                 if (nodesWithFixedCost.containsKey(superType) && nodesWithFixedCost.get(superType) > 0D) {
-                    Node subType = allNodes.get(NodeId.of(NodeId.NodeType.VAR, fragment.end()));
+                    Node subType = allNodes.get(NodeId.of(NodeId.Type.VAR, fragment.end()));
                     return !nodesWithFixedCost.containsKey(subType);
                 }
             }
@@ -316,21 +337,21 @@ public class TraversalPlanner {
         if (!validSubFragments.isEmpty()) {
             validSubFragments.forEach(fragment -> {
                 // TODO: should decrease the weight of sub type after each level
-                nodesWithFixedCost.put(allNodes.get(NodeId.of(NodeId.NodeType.VAR, fragment.end())),
-                        nodesWithFixedCost.get(allNodes.get(NodeId.of(NodeId.NodeType.VAR, fragment.start()))));
+                nodesWithFixedCost.put(allNodes.get(NodeId.of(NodeId.Type.VAR, fragment.end())),
+                        nodesWithFixedCost.get(allNodes.get(NodeId.of(NodeId.Type.VAR, fragment.start()))));
             });
             // recursively process all the sub fragments
             updateFixedCostSubsReachableByIndex(allNodes, nodesWithFixedCost, fragments);
         }
     }
 
-    static Map<Node, Map<Node, Fragment>> virtualMiddleNodeToFragmentMapping(Set<Fragment> connectedFragments, Map<NodeId, Node> nodes) {
+    private static Map<Node, Map<Node, Fragment>> virtualMiddleNodeToFragmentMapping(Set<Fragment> connectedFragments, Map<NodeId, Node> nodes) {
         Map<Node, Map<Node, Fragment>> middleNodeFragmentMapping = new HashMap<>();
         for (Fragment fragment : connectedFragments) {
-            Pair<Node, Node> middleNodeDirectedEdge = fragment.getMiddleNodeDirectedEdge(nodes);
+            Tuple<Node, Node> middleNodeDirectedEdge = fragment.getMiddleNodeDirectedEdge(nodes);
             if (middleNodeDirectedEdge != null) {
-                middleNodeFragmentMapping.putIfAbsent(middleNodeDirectedEdge.getKey(), new HashMap<>());
-                middleNodeFragmentMapping.get(middleNodeDirectedEdge.getKey()).put(middleNodeDirectedEdge.getValue(), fragment);
+                middleNodeFragmentMapping.putIfAbsent(middleNodeDirectedEdge.first(), new HashMap<>());
+                middleNodeFragmentMapping.get(middleNodeDirectedEdge.first()).put(middleNodeDirectedEdge.second(), fragment);
             }
         }
         return middleNodeFragmentMapping;

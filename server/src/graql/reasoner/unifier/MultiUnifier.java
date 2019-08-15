@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -26,7 +26,7 @@ import java.util.Iterator;
 import java.util.stream.Stream;
 
 /**
- * Generalisation of the {@link Unifier} accounting for the possibility of existence of more than one unifier between two expressions.
+ * Generalisation of the Unifier accounting for the possibility of existence of more than one unifier between two expressions.
  * Corresponds to a simple set U = {u1, u2, ..., ui}, where i e N, i >= 0.
  * The case of i = 0 corresponds to a case where no unifier exists.
  */

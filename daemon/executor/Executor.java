@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,7 +18,6 @@
 
 package grakn.core.daemon.executor;
 
-import com.google.auto.value.AutoValue;
 import org.apache.commons.io.FileUtils;
 import org.zeroturnaround.exec.ProcessExecutor;
 import org.zeroturnaround.exec.ProcessResult;
@@ -31,7 +30,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 
@@ -40,25 +38,32 @@ import java.util.concurrent.TimeoutException;
  */
 public class Executor {
 
-    @AutoValue
-    public abstract static class Result {
-        public static Result create(String stdout, String stderr, int exitCode) {
-            return new AutoValue_Executor_Result(stdout, stderr, exitCode);
+    public static class Result {
+
+        private final String stdout;
+        private final String stderr;
+        private final int exitCode;
+
+        public Result(String stdout, String stderr, int exitCode) {
+            this.stdout = stdout;
+            this.stderr = stderr;
+            this.exitCode = exitCode;
         }
 
         public boolean success() {
             return exitCode() == 0;
         }
 
-        public abstract String stdout();
+        public String stdout() { return stdout; }
 
-        public abstract String stderr();
+        public String stderr() { return stderr; }
 
-        public abstract int exitCode();
+        public int exitCode() { return exitCode; }
     }
 
-    public static final long WAIT_INTERVAL_SECOND = 2;
-    public static final String SH = "/bin/sh";
+    static final long WAIT_INTERVAL_SECOND = 2;
+    private static final String SH = "/bin/sh";
+
 
     public CompletableFuture<Result> executeAsync(List<String> command, File workingDirectory) {
         return CompletableFuture.supplyAsync(() -> executeAndWait(command, workingDirectory));
@@ -73,31 +78,17 @@ public class Executor {
                     .command(command)
                     .execute();
 
-            return Result.create(
+            return new Result(
                     result.outputUTF8(),
                     stderr.toString(StandardCharsets.UTF_8.name()),
                     result.getExitValue()
             );
-        } catch (IOException | InterruptedException | TimeoutException e) {
+        } catch (IOException | TimeoutException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
-    }
-
-    public Optional<String> getPidFromFile(Path fileName) {
-        String pid = null;
-        if (fileName.toFile().exists()) {
-            try {
-                pid = new String(Files.readAllBytes(fileName), StandardCharsets.UTF_8).trim();
-            } catch (IOException e) {
-                // DO NOTHING
-            }
-        }
-        return Optional.ofNullable(pid);
-    }
-
-    public String getPidFromPsOf(String processName) {
-        return executeAndWait(
-                Arrays.asList(SH, "-c", "ps -ef | grep " + processName + " | grep -v grep | awk '{print $2}' "), null).stdout();
     }
 
     public String retrievePid(Path pidFile) {
@@ -119,7 +110,7 @@ public class Executor {
             try {
                 Thread.sleep(WAIT_INTERVAL_SECOND * 1000);
             } catch (InterruptedException e) {
-                // DO NOTHING
+                Thread.currentThread().interrupt();
             }
         }
         System.out.println("SUCCESS");
@@ -134,13 +125,42 @@ public class Executor {
                 if (processPid.trim().isEmpty()) {
                     return false;
                 }
-                Result command =
-                        executeAndWait(checkPIDRunningCommand(processPid), null);
+                Result command = executeAndWait(checkPIDRunningCommand(processPid), null);
 
                 if (command.exitCode() != 0) {
                     System.out.println(command.stderr());
                 }
                 return command.exitCode() == 0;
+            } catch (NumberFormatException | IOException e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+
+    /**
+     * Method used to check whether the pid contained in the pid file actually corresponds
+     * to a Grakn(Storage) process.
+     *
+     * @param pidFile path to pid file
+     * @param className name of Class associated to the given pid (e.g. "grakn.core.server.Grakn")
+     * @return true if PID is associated to the a Grakn process, false otherwise.
+     */
+    public boolean isAGraknProcess(Path pidFile, String className) {
+        String processPid;
+        if (pidFile.toFile().exists()) {
+            try {
+                processPid = new String(Files.readAllBytes(pidFile), StandardCharsets.UTF_8);
+                if (processPid.trim().isEmpty()) {
+                    return false;
+                }
+                Result command = executeAndWait(getGraknPIDArgsCommand(processPid), null);
+
+                if (command.exitCode() != 0) {
+                    return false;
+                }
+                return command.stdout().contains(className);
             } catch (NumberFormatException | IOException e) {
                 return false;
             }
@@ -156,6 +176,14 @@ public class Executor {
         }
     }
 
+    private List<String> getGraknPIDArgsCommand(String pid) {
+        if (isWindows()) {
+            return Arrays.asList("cmd", "/c", "wmic process where processId='" + pid.trim() + "' get Commandline | findstr Grakn");
+        } else {
+            return Arrays.asList(SH, "-c", "ps -p " + pid.trim() + " -o command | awk '{print $NF}' | grep Grakn");
+        }
+    }
+
     public void stopProcessIfRunning(Path pidFile, String programName) {
         System.out.print("Stopping " + programName + "...");
         System.out.flush();
@@ -168,8 +196,8 @@ public class Executor {
 
     }
 
-    public void processStatus(Path storagePid, String name) {
-        if (isProcessRunning(storagePid)) {
+    public void processStatus(Path pidFile, String name, String className) {
+        if (isProcessRunning(pidFile) && isAGraknProcess(pidFile, className)) {
             System.out.println(name + ": RUNNING");
         } else {
             System.out.println(name + ": NOT RUNNING");
@@ -191,7 +219,9 @@ public class Executor {
         }
     }
 
-    private void kill(String pid) { executeAndWait(killProcessCommand(pid), null); }
+    private void kill(String pid) {
+        executeAndWait(killProcessCommand(pid), null);
+    }
 
     private boolean isWindows() {
         return System.getProperty("os.name").toLowerCase().contains("win");

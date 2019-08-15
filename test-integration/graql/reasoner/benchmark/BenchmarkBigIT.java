@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -64,6 +64,7 @@ public class BenchmarkBigIT {
     public static final GraknTestServer server = new GraknTestServer();
 
     private String keyspace;
+    final private Random rand = new Random();
 
     @Before
     public void randomiseKeyspace() {
@@ -71,9 +72,10 @@ public class BenchmarkBigIT {
     }
 
     private void loadOntology(String fileName, GraknClient.Session session) {
-        try {
-            InputStream inputStream = new FileInputStream("test-integration/graql/reasoner/resources/" + fileName);
-            String s = new BufferedReader(new InputStreamReader(inputStream)).lines().collect(Collectors.joining("\n"));
+        try (
+                InputStream inputStream = new FileInputStream("test-integration/graql/reasoner/resources/" + fileName);
+                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream))) {
+            String s = bufferedReader.lines().collect(Collectors.joining("\n"));
             GraknClient.Transaction tx = session.transaction().write();
             tx.execute(Graql.parse(s).asDefine());
             tx.commit();
@@ -106,7 +108,6 @@ public class BenchmarkBigIT {
             Role toRole = transaction.getRole(toRoleLabel);
             RelationType relationType = transaction.getRelationType(relationLabel);
 
-            Random rand = new Random();
             Multimap<Integer, Integer> assignmentMap = HashMultimap.create();
             for (int i = 0; i < N; i++) {
                 int from = rand.nextInt(N - 1);
@@ -130,7 +131,7 @@ public class BenchmarkBigIT {
     }
 
     private void loadJoinData(int N) {
-        try (GraknClient.Session session = new GraknClient(server.grpcUri().toString()).session(keyspace)) {
+        try (GraknClient.Session session = new GraknClient(server.grpcUri()).session(keyspace)) {
             final int M = N / 5;
             loadOntology("multiJoin.gql", session);
             loadEntities("genericEntity", M, session);
@@ -143,7 +144,7 @@ public class BenchmarkBigIT {
     }
 
     private void loadTransitivityData(int N) {
-        try (GraknClient.Session session = new GraknClient(server.grpcUri().toString()).session(keyspace)) {
+        try (GraknClient.Session session = new GraknClient(server.grpcUri()).session(keyspace)) {
             loadOntology("linearTransitivity.gql", session);
             loadEntities("a-entity", N, session);
             loadRandomisedRelationInstances("a-entity", "Q-from", "Q-to", "Q", N, session);
@@ -159,7 +160,7 @@ public class BenchmarkBigIT {
         String toRoleLabel = "toRole";
 
         //load ontology
-        try (GraknClient.Session session = new GraknClient(server.grpcUri().toString()).session(keyspace)) {
+        try (GraknClient.Session session = new GraknClient(server.grpcUri()).session(keyspace)) {
             try (GraknClient.Transaction transaction = session.transaction().write()) {
                 Role fromRole = transaction.putRole(fromRoleLabel);
                 Role toRole = transaction.putRole(toRoleLabel);
@@ -265,7 +266,7 @@ public class BenchmarkBigIT {
         }.getClass().getEnclosingMethod().getName());
         loadTransitivityData(N);
 
-        try (GraknClient.Session session = new GraknClient(server.grpcUri().toString()).session(keyspace)) {
+        try (GraknClient.Session session = new GraknClient(server.grpcUri()).session(keyspace)) {
             try (GraknClient.Transaction tx = session.transaction().read()) {
                 ConceptId entityId = tx.getEntityType("a-entity").instances().findFirst().get().id();
                 String queryPattern = "(P-from: $x, P-to: $y) isa P;";
@@ -308,7 +309,7 @@ public class BenchmarkBigIT {
         }.getClass().getEnclosingMethod().getName());
         loadJoinData(N);
 
-        try (GraknClient.Session session = new GraknClient(server.grpcUri().toString()).session(keyspace)) {
+        try (GraknClient.Session session = new GraknClient(server.grpcUri()).session(keyspace)) {
             try (GraknClient.Transaction tx = session.transaction().read()) {
                 ConceptId entityId = tx.getEntityType("genericEntity").instances().findFirst().get().id();
                 String queryPattern = "(fromRole: $x, toRole: $y) isa A;";
@@ -349,7 +350,7 @@ public class BenchmarkBigIT {
         }.getClass().getEnclosingMethod().getName());
         loadRuleChainData(N);
 
-        try (GraknClient.Session session = new GraknClient(server.grpcUri().toString()).session(keyspace)) {
+        try (GraknClient.Session session = new GraknClient(server.grpcUri()).session(keyspace)) {
             try (GraknClient.Transaction tx = session.transaction().read()) {
                 ConceptId firstId = Iterables.getOnlyElement(tx.execute(Graql.parse("match $x has index 'first';get;").asGet())).get("x").id();
                 ConceptId lastId = Iterables.getOnlyElement(tx.execute(Graql.parse("match $x has index '" + N + "';get;").asGet())).get("x").id();
@@ -378,13 +379,13 @@ public class BenchmarkBigIT {
         }.getClass().getEnclosingMethod().getName());
         loadRuleChainData(N);
 
-        try (GraknClient.Session session = new GraknClient(server.grpcUri().toString()).session(keyspace)) {
+        try (GraknClient.Session session = new GraknClient(server.grpcUri()).session(keyspace)) {
             ExecutorService executor = Executors.newFixedThreadPool(8);
             List<CompletableFuture<Void>> asyncMatches = new ArrayList<>();
             for (int i = 0; i < 8; i++) {
                 CompletableFuture<Void> asyncMatch = CompletableFuture.supplyAsync(() -> {
                     try (GraknClient.Transaction tx = session.transaction().read()) {
-                        int randomRelation = new Random().nextInt(N - 1);
+                        int randomRelation = rand.nextInt(N - 1);
                         String queryPattern = "(fromRole: $x, toRole: $y) isa relation" + (randomRelation + 1) + ";";
                         String queryString = "match " + queryPattern + " get;";
                         executeQuery(queryString, tx, "full");

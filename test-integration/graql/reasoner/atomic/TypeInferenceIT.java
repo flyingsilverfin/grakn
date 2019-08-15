@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -44,20 +44,17 @@ import graql.lang.pattern.Conjunction;
 import graql.lang.query.GraqlGet;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Test;
 
+import static grakn.core.util.GraqlTestUtil.loadFromFileAndCommit;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -65,33 +62,34 @@ import static org.junit.Assert.assertNull;
 @SuppressWarnings({"CheckReturnValue", "Duplicates"})
 public class TypeInferenceIT {
 
+    private static String resourcePath = "test-integration/graql/reasoner/resources/";
+
     @ClassRule
     public static final GraknTestServer server = new GraknTestServer();
 
     private static SessionImpl testContextSession;
 
-    private static void loadFromFile(String fileName, SessionImpl session){
-        try {
-            InputStream inputStream = TypeInferenceIT.class.getClassLoader().getResourceAsStream("test-integration/graql/reasoner/resources/"+fileName);
-            String s = new BufferedReader(new InputStreamReader(inputStream)).lines().collect(Collectors.joining("\n"));
-            TransactionOLTP tx = session.transaction().write();
-            Graql.parseList(s).forEach(tx::execute);
-            tx.commit();
-        } catch (Exception e){
-            System.err.println(e);
-            throw new RuntimeException(e);
-        }
-    }
-
     @BeforeClass
     public static void loadContext(){
         testContextSession = server.sessionWithNewKeyspace();
-        loadFromFile("typeInferenceTest.gql", testContextSession);
+        loadFromFileAndCommit(resourcePath,"typeInferenceTest.gql", testContextSession);
     }
 
     @AfterClass
     public static void closeSession(){
         testContextSession.close();
+    }
+
+    @Test
+    public void whenCalculatingTypeMaps_typesAreCollapsedCorrectly(){
+        TransactionOLTP tx = testContextSession.transaction().write();
+
+        ReasonerQuery query = ReasonerQueries.atomic(conjunction("{($x); $x isa singleRoleEntity;$x isa twoRoleEntity;};"), tx);
+        assertEquals(tx.getEntityType("twoRoleEntity"), Iterables.getOnlyElement(query.getVarTypeMap().get(new Variable("x"))));
+
+        query = ReasonerQueries.atomic(conjunction("{($x); $x isa entity;$x isa singleRoleEntity;};"), tx);
+        assertEquals(tx.getType(Label.of("singleRoleEntity")), Iterables.getOnlyElement(query.getVarTypeMap().get(new Variable("x"))));
+        tx.close();
     }
 
     @Test
@@ -342,7 +340,7 @@ public class TypeInferenceIT {
                 "($z, $w); $w isa threeRoleEntity;" +
                 "};";
 
-        ReasonerQueryImpl conjQuery = ReasonerQueries.create(conjunction(patternString, tx), tx);
+        ReasonerQueryImpl conjQuery = ReasonerQueries.create(conjunction(patternString), tx);
 
         //determination of possible rel types for ($y, $z) relation depends on its neighbours which should be preserved
         //when resolving (and separating atoms) the query
@@ -371,7 +369,7 @@ public class TypeInferenceIT {
     }
 
     private void typeInference(List<Type> possibleTypes, String pattern, TransactionOLTP tx){
-        ReasonerAtomicQuery query = ReasonerQueries.atomic(conjunction(pattern, tx), tx);
+        ReasonerAtomicQuery query = ReasonerQueries.atomic(conjunction(pattern), tx);
         Atom atom = query.getAtom();
         List<Type> relationTypes = atom.getPossibleTypes();
 
@@ -387,8 +385,8 @@ public class TypeInferenceIT {
     }
 
     private void typeInference(List<Type> possibleTypes, String pattern, String subbedPattern, TransactionOLTP tx){
-        ReasonerAtomicQuery query = ReasonerQueries.atomic(conjunction(pattern, tx), tx);
-        ReasonerAtomicQuery subbedQuery = ReasonerQueries.atomic(conjunction(subbedPattern, tx), tx);
+        ReasonerAtomicQuery query = ReasonerQueries.atomic(conjunction(pattern), tx);
+        ReasonerAtomicQuery subbedQuery = ReasonerQueries.atomic(conjunction(subbedPattern), tx);
         Atom atom = query.getAtom();
         Atom subbedAtom = subbedQuery.getAtom();
 
@@ -420,7 +418,7 @@ public class TypeInferenceIT {
 
     private List<ConceptMap> typedAnswers(List<Type> possibleTypes, String pattern, TransactionOLTP tx){
         List<ConceptMap> answers = new ArrayList<>();
-        ReasonerAtomicQuery query = ReasonerQueries.atomic(conjunction(pattern, tx), tx);
+        ReasonerAtomicQuery query = ReasonerQueries.atomic(conjunction(pattern), tx);
         for(SchemaConcept type : possibleTypes){
             GraqlGet typedQuery = Graql.match(ReasonerQueries.atomic(query.getAtom().addType(type)).getPattern()).get();
             tx.stream(typedQuery).filter(ans -> !answers.contains(ans)).forEach(answers::add);
@@ -437,7 +435,7 @@ public class TypeInferenceIT {
         return tx.getEntityType(type).instances().map(Concept::id).findFirst().orElse(null);
     }
 
-    private Conjunction<Statement> conjunction(String patternString, TransactionOLTP tx){
+    private Conjunction<Statement> conjunction(String patternString){
         Set<Statement> vars = Graql.parsePattern(patternString)
                 .getDisjunctiveNormalForm().getPatterns()
                 .stream().flatMap(p -> p.getPatterns().stream()).collect(toSet());

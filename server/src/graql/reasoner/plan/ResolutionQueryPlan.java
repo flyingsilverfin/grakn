@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -36,8 +36,8 @@ import java.util.stream.Collectors;
 /**
  *
  * <p>
- * Class defining the resolution plan for a given {@link ReasonerQueryImpl} at a query level.
- * The plan is constructed using the {@link ResolutionPlan} working at an atom level.
+ * Class defining the resolution plan for a given ReasonerQueryImpl at a query level.
+ * The plan is constructed using the ResolutionPlan working at an atom level.
  * </p>
  *
  *

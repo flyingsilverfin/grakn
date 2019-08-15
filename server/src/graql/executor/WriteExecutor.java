@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,6 +18,7 @@
 
 package grakn.core.graql.executor;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -31,13 +32,18 @@ import com.google.common.collect.Sets;
 import grakn.benchmark.lib.instrumentation.ServerTracing;
 import grakn.core.concept.Concept;
 import grakn.core.concept.answer.ConceptMap;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.concept.thing.Thing;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.executor.property.PropertyExecutor.Writer;
 import grakn.core.graql.util.Partition;
+import grakn.core.server.kb.Schema;
+import grakn.core.server.kb.concept.ConceptUtils;
+import grakn.core.server.kb.concept.ConceptVertex;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.property.VarProperty;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -264,7 +270,26 @@ public class WriteExecutor {
         }
 
         Map<Variable, Concept> namedConcepts = Maps.filterKeys(allConcepts.build(), Variable::isReturned);
+
+        //mark all inferred concepts that are required for the insert for persistence explicitly
+        markConceptsForPersistence(namedConcepts.values());
+
         return new ConceptMap(namedConcepts);
+    }
+
+    private void markConceptsForPersistence(Collection<Concept> concepts){
+        Set<Thing> things = concepts.stream()
+                .filter(Concept::isThing)
+                .map(Concept::asThing)
+                .collect(Collectors.toSet());
+
+        ConceptUtils.getDependentConcepts(things)
+                .filter(Thing::isInferred)
+                .forEach(t -> {
+                    //as we are going to persist the concepts, reset the inferred flag
+                    ConceptVertex.from(t).vertex().property(Schema.VertexProperty.IS_INFERRED, false);
+                    transaction.cache().inferredInstanceToPersist(t);
+                });
     }
 
     public void toDelete(Concept concept) {
@@ -273,7 +298,7 @@ public class WriteExecutor {
 
     private Concept buildConcept(Variable var, ConceptBuilder builder) {
         Concept concept = builder.build();
-        assert concept != null : String.format("build() should never return null. var: %s", var);
+        Preconditions.checkNotNull(concept, "build() should never return null. var: %s", var);
         concepts.put(var, concept);
         return concept;
     }
@@ -319,7 +344,7 @@ public class WriteExecutor {
         if (!dependencies.isEmpty()) {
             // This means there must have been a loop. Pick an arbitrary remaining var to display
             Variable var = dependencies.keys().iterator().next().var();
-            throw GraqlQueryException.insertRecursive(printableRepresentation(var));
+            throw GraqlSemanticException.insertRecursive(printableRepresentation(var));
         }
 
         return sorted.build();
@@ -333,12 +358,12 @@ public class WriteExecutor {
      * response to PropertyExecutor#producedVars().
      * For example, a property may call {@code executor.builder(var).isa(type);} in order to provide a type for a var.
      *
-     * @throws GraqlQueryException if the concept in question has already been created
+     * @throws GraqlSemanticException if the concept in question has already been created
      */
     public ConceptBuilder getBuilder(Variable var) {
         return tryBuilder(var).orElseThrow(() -> {
             Concept concept = concepts.get(equivalentVars.componentOf(var));
-            return GraqlQueryException.insertExistingConcept(printableRepresentation(var), concept);
+            return GraqlSemanticException.insertExistingConcept(printableRepresentation(var), concept);
         });
     }
 
@@ -377,7 +402,7 @@ public class WriteExecutor {
      */
     public Concept getConcept(Variable var) {
         var = equivalentVars.componentOf(var);
-        assert var != null;
+        Preconditions.checkNotNull(var);
 
         @Nullable Concept concept = concepts.get(var);
 
@@ -395,10 +420,15 @@ public class WriteExecutor {
 
         LOG.debug("Could not build concept for {}\nconcepts = {}\nconceptBuilders = {}", var, concepts, conceptBuilders);
 
-        throw GraqlQueryException.insertUndefinedVariable(printableRepresentation(var));
+        throw GraqlSemanticException.insertUndefinedVariable(printableRepresentation(var));
     }
 
-    Statement printableRepresentation(Variable var) {
+    public boolean isConceptDefined(Variable var) {
+        var = equivalentVars.componentOf(var);
+        return concepts.containsKey(var);
+    }
+
+    public Statement printableRepresentation(Variable var) {
         LinkedHashSet<VarProperty> propertiesOfVar = new LinkedHashSet<>();
 
         // This could be faster if we built a dedicated map Var -> VarPattern

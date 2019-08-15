@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -19,9 +19,9 @@
 load("@graknlabs_build_tools//checkstyle:rules.bzl", "checkstyle_test")
 
 java_test(
-    name = "server-lock-manager-test",
-    test_class = "grakn.core.server.util.ServerLockManagerTest",
-    srcs = ["ServerLockManagerTest.java"],
+    name = "lock-manager-test",
+    test_class = "grakn.core.server.util.LockManagerTest",
+    srcs = ["LockManagerTest.java"],
     deps = [
         "//server",
     ],
@@ -30,5 +30,5 @@ java_test(
 
 checkstyle_test(
     name = "checkstyle",
-    targets = [":server-lock-manager-test"],
+    targets = [":lock-manager-test"],
 )

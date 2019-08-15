@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -34,12 +34,9 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Base {@link Atomic} implementation providing basic functionalities.
+ * Base Atomic implementation providing basic functionalities.
  */
 public abstract class AtomicBase implements Atomic {
-
-    @Override
-    public Atomic neqPositive() { return this; }
 
     @Override public void checkValid(){}
 
@@ -63,8 +60,8 @@ public abstract class AtomicBase implements Atomic {
     }
 
     /**
-     * @param type the class of {@link Predicate} to return
-     * @param <T> the type of {@link Predicate} to return
+     * @param type the class of Predicate to return
+     * @param <T> the type of Predicate to return
      * @return stream of predicates relevant to this atomic
      */
     public <T extends Predicate> Stream<T> getPredicates(Class<T> type) {

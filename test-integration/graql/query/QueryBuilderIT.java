@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,7 +18,7 @@
 
 package grakn.core.graql.query;
 
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.graph.MovieGraph;
 import grakn.core.rule.GraknTestServer;
 import grakn.core.server.session.SessionImpl;
@@ -96,7 +96,7 @@ public class QueryBuilderIT {
         assertNotExists(tx, var().has("title", "123"));
     }
 
-    @Test (expected = GraqlQueryException.class)
+    @Test (expected = GraqlSemanticException.class)
     public void whenBuildingUndefineQueryWithGraphLast_ItExecutes() {
         tx.execute(Graql.define(type("yes").sub("entity")));
 
@@ -117,7 +117,7 @@ public class QueryBuilderIT {
 
     @Test
     public void whenGraphIsProvidedAndQueryExecutedWithNonexistentType_Throw() {
-        exception.expect(GraqlQueryException.class);
+        exception.expect(GraqlSemanticException.class);
         //noinspection ResultOfMethodCallIgnored
         tx.stream(Graql.match(x.isa("not-a-thing")));
     }

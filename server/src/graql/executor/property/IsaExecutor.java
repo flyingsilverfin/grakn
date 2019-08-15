@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,8 +19,11 @@
 package grakn.core.graql.executor.property;
 
 import com.google.common.collect.ImmutableSet;
+import grakn.core.concept.Concept;
 import grakn.core.concept.ConceptId;
+import grakn.core.concept.type.SchemaConcept;
 import grakn.core.concept.type.Type;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.executor.WriteExecutor;
 import grakn.core.graql.gremlin.EquivalentFragmentSet;
 import grakn.core.graql.gremlin.sets.EquivalentFragmentSets;
@@ -116,7 +119,17 @@ public class IsaExecutor implements PropertyExecutor.Insertable {
         @Override
         public void execute(WriteExecutor executor) {
             Type type = executor.getConcept(property.type().var()).asType();
-            executor.getBuilder(var).isa(type);
+            if (executor.isConceptDefined(var)) {
+                Concept concept = executor.getConcept(var); // retrieve the existing concept
+                // we silently "allow" redefining concepts, while actually doing a no-op, as long as the type hasn't changed
+                if (type.subs().map(SchemaConcept::label).noneMatch(label -> label.equals(concept.asThing().type().label()))) {
+                    //downcasting is bad
+                    throw GraqlSemanticException.conceptDowncast(concept.asThing().type(), type);
+                }
+                //upcasting we silently accept
+            } else {
+                executor.getBuilder(var).isa(type);
+            }
         }
     }
 }

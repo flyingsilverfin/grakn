@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -34,7 +34,7 @@ java_test(
     name = "keyspace-cache-it",
     test_class = "grakn.core.server.session.cache.KeyspaceCacheIT",
     srcs = ["cache/KeyspaceCacheIT.java"],
-    deps = ["//server", "//test-integration/rule:grakn-test-server", "@graknlabs_client_java//:client-java", "//concept"],
+    deps = ["//server", "//test-integration/rule:grakn-test-server", "@graknlabs_client_java//:client-java", "//concept", "@graknlabs_graql//java:graql"],
     classpath_resources = ["//test-integration/resources:logback-test"]
 )
 
@@ -47,8 +47,11 @@ java_test(
         "//test-integration/rule:grakn-test-server",
         "//concept",
         "//dependencies/maven/artifacts/org/hamcrest:hamcrest-library",
+        "@graknlabs_graql//java:graql",
+        "//dependencies/maven/artifacts/org/apache/tinkerpop:gremlin-core",
     ],
-    classpath_resources = ["//test-integration/resources:logback-test"]
+    classpath_resources = ["//test-integration/resources:logback-test"],
+    data = ["//test-integration/resources:grakn-small-tx-cache"]
 )
 
 checkstyle_test(

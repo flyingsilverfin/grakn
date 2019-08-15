@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,6 +18,7 @@
 
 package grakn.core.graql.reasoner.atomic;
 
+import com.google.common.collect.Lists;
 import grakn.core.graql.reasoner.atom.Atom;
 import grakn.core.graql.reasoner.atom.Atomic;
 import grakn.core.graql.reasoner.query.ReasonerQueries;
@@ -27,6 +28,8 @@ import grakn.core.server.session.TransactionOLTP;
 import graql.lang.Graql;
 import graql.lang.pattern.Conjunction;
 import graql.lang.statement.Statement;
+import java.util.ArrayList;
+import java.util.Set;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -34,14 +37,12 @@ import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import static grakn.core.util.GraqlTestUtil.loadFromFileAndCommit;
 import static java.util.stream.Collectors.toSet;
+import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 
 @SuppressWarnings({"CheckReturnValue", "Duplicates"})
 public class AtomicEquivalenceIT {
@@ -51,25 +52,13 @@ public class AtomicEquivalenceIT {
 
     private static SessionImpl genericSchemaSession;
 
-    private static void loadFromFile(String fileName, SessionImpl session){
-        try {
-            InputStream inputStream = AtomicEquivalenceIT.class.getClassLoader().getResourceAsStream("test-integration/graql/reasoner/resources/"+fileName);
-            String s = new BufferedReader(new InputStreamReader(inputStream)).lines().collect(Collectors.joining("\n"));
-            TransactionOLTP tx = session.transaction().write();
-            Graql.parseList(s).forEach(tx::execute);
-            tx.commit();
-        } catch (Exception e){
-            System.err.println(e);
-            throw new RuntimeException(e);
-        }
-    }
-
     private TransactionOLTP tx;
 
     @BeforeClass
     public static void loadContext(){
         genericSchemaSession = server.sessionWithNewKeyspace();
-        loadFromFile("genericSchema.gql", genericSchemaSession);
+        String resourcePath = "test-integration/graql/reasoner/resources/";
+        loadFromFileAndCommit(resourcePath,"genericSchema.gql", genericSchemaSession);
     }
 
     @AfterClass
@@ -120,7 +109,7 @@ public class AtomicEquivalenceIT {
     }
 
     @Test
-    public void testEquivalence_DifferentRelationVariants(){
+    public void testEquality_DifferentRelationVariants(){
         String pattern = "{ (baseRole1: $x, baseRole2: $y) isa binary; };";
         String directPattern = "{ (baseRole1: $x, baseRole2: $y) isa! binary; };";
         String pattern2 = "{ $r (baseRole1: $x, baseRole2: $y) isa binary; };";
@@ -140,6 +129,72 @@ public class AtomicEquivalenceIT {
         atomicEquality(pattern, pattern6, false, tx);
         atomicEquality(pattern, pattern7, false, tx);
         atomicEquality(pattern, pattern8, false, tx);
+    }
+
+    @Test
+    public void testEquivalence_DifferentNonVariablePredicateVariants(){
+        Statement value = Graql.var("value");
+        final String bound = "value";
+        ArrayList<Statement> variablePredicates = Lists.newArrayList(
+                value.gt(bound),
+                value.gte(bound),
+                value.lt(bound),
+                value.lte(bound),
+                value.eq(bound),
+                value.neq(bound),
+                value.contains(bound)
+        );
+
+        variablePredicates.forEach(vp -> {
+            Conjunction<Statement> conj = (Conjunction<Statement>) Graql.and(vp);
+            Atomic atom = ReasonerQueries.create(conj, tx).getAtoms().stream().findFirst().orElse(null);
+            Atomic atomCopy = atom.copy(atom.getParentQuery());
+            assertEquals(atom, atomCopy);
+            assertTrue(atom.isAlphaEquivalent(atomCopy));
+            assertTrue(atom.isStructurallyEquivalent(atomCopy));
+            variablePredicates.stream()
+                    .filter(vp2 -> !vp.equals(vp2))
+                    .forEach(vp2 -> {
+                        Conjunction<Statement> conj2 = (Conjunction<Statement>) Graql.and(vp2);
+                        Atomic atom2 = ReasonerQueries.create(conj2, tx).getAtoms().stream().findFirst().orElse(null);
+                        assertNotEquals("Unexpected equality outcome: " + atom + "==" + atom2, atom, atom2);
+                        assertFalse("Unexpected alpha-equivalence outcome: " + atom + "==" + atom2, atom.isAlphaEquivalent(atom2));
+                        assertFalse("Unexpected struct-equivalence outcome: " + atom + "==" + atom2, atom.isStructurallyEquivalent(atom2));
+                    });
+        });
+    }
+
+    @Test
+    public void testEquivalence_DifferentVariablePredicateVariants(){
+        Statement value = Graql.var("value");
+        Statement anotherValue = Graql.var("anotherValue");
+        ArrayList<Statement> variablePredicates = Lists.newArrayList(
+                value.gt(anotherValue),
+                value.gte(anotherValue),
+                value.lt(anotherValue),
+                value.lte(anotherValue),
+                value.eq(anotherValue),
+                value.neq(anotherValue),
+                value.contains(anotherValue)
+        );
+
+        variablePredicates.forEach(vp -> {
+            Conjunction<Statement> conj = (Conjunction<Statement>) Graql.and(vp);
+            Atomic atom = ReasonerQueries.create(conj, tx).getAtoms().stream().findFirst().orElse(null);
+            Atomic atomCopy = atom.copy(atom.getParentQuery());
+            assertEquals(atom, atomCopy);
+            assertTrue(atom.isAlphaEquivalent(atomCopy));
+            assertTrue(atom.isStructurallyEquivalent(atomCopy));
+            variablePredicates.stream()
+                    .filter(vp2 -> !vp.equals(vp2))
+                    .forEach(vp2 -> {
+                        Conjunction<Statement> conj2 = (Conjunction<Statement>) Graql.and(vp2);
+                        Atomic atom2 = ReasonerQueries.create(conj2, tx).getAtoms().stream().findFirst().orElse(null);
+                        assertNotEquals("Unexpected equality outcome: " + atom + "==" + atom2, atom, atom2);
+                        assertFalse("Unexpected alpha-equivalence outcome: " + atom + "==" + atom2, atom.isAlphaEquivalent(atom2));
+                        assertFalse("Unexpected struct-equivalence outcome: " + atom + "==" + atom2, atom.isStructurallyEquivalent(atom2));
+                    });
+        });
     }
 
     private void testEquality_DifferentTypeVariants(TransactionOLTP tx, String keyword, String label, String label2){
@@ -170,8 +225,8 @@ public class AtomicEquivalenceIT {
     }
 
     private void atomicEquality(String patternA, String patternB, boolean expectation, TransactionOLTP tx){
-        Atom atomA = ReasonerQueries.atomic(conjunction(patternA, tx), tx).getAtom();
-        Atom atomB = ReasonerQueries.atomic(conjunction(patternB, tx), tx).getAtom();
+        Atom atomA = ReasonerQueries.atomic(conjunction(patternA), tx).getAtom();
+        Atom atomB = ReasonerQueries.atomic(conjunction(patternB), tx).getAtom();
         atomicEquality(atomA, atomA, true);
         atomicEquality(atomB, atomB, true);
         atomicEquality(atomA, atomB, expectation);
@@ -187,7 +242,7 @@ public class AtomicEquivalenceIT {
         }
     }
 
-    private Conjunction<Statement> conjunction(String patternString, TransactionOLTP tx){
+    private Conjunction<Statement> conjunction(String patternString){
         Set<Statement> vars = Graql.parsePattern(patternString)
                 .getDisjunctiveNormalForm().getPatterns()
                 .stream().flatMap(p -> p.getPatterns().stream()).collect(toSet());

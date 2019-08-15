@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -51,8 +51,9 @@ public class VertexElement extends AbstractElement<Vertex, Schema.VertexProperty
      */
     public Stream<EdgeElement> getEdgesOfType(Direction direction, Schema.EdgeLabel label) {
         Iterable<Edge> iterable = () -> element().edges(direction, label.getLabel());
-        return StreamSupport.stream(iterable.spliterator(), false).
-                map(edge -> tx().factory().buildEdgeElement(edge));
+        return StreamSupport.stream(iterable.spliterator(), false)
+                .filter(edge -> tx().isValidElement(edge)) // filter out deleted but cached available edges
+                .map(edge -> tx().factory().buildEdgeElement(edge));
     }
 
     /**

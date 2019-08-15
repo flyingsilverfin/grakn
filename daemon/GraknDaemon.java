@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -20,10 +20,10 @@ package grakn.core.daemon;
 
 import grakn.core.common.config.SystemProperty;
 import grakn.core.common.exception.ErrorMessage;
-import grakn.core.common.util.GraknVersion;
 import grakn.core.daemon.executor.Executor;
 import grakn.core.daemon.executor.Server;
 import grakn.core.daemon.executor.Storage;
+import grakn.core.server.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,13 +36,17 @@ import java.util.Objects;
 import java.util.Scanner;
 
 /**
- * The {@link GraknDaemon} class is responsible for starting, stopping and cleaning the keyspaces of Grakn
+ * The GraknDaemon class is responsible for starting, stopping and cleaning the keyspaces of Grakn
  */
 public class GraknDaemon {
     private static final Logger LOG = LoggerFactory.getLogger(GraknDaemon.class);
 
     private static final String SERVER = "server";
     private static final String STORAGE = "storage";
+    private static final String EMPTY_STRING = "";
+    private static final String BENCHMARK_FLAG = "--benchmark";
+    private static final String VERSION_LABEL = "Version: ";
+
 
     private final Storage storageExecutor;
     private final Server serverExecutor;
@@ -57,10 +61,7 @@ public class GraknDaemon {
         try {
             Path graknHome = Paths.get(Objects.requireNonNull(SystemProperty.CURRENT_DIRECTORY.value()));
             Path graknProperties = Paths.get(Objects.requireNonNull(SystemProperty.CONFIGURATION_FILE.value()));
-
             assertEnvironment(graknHome, graknProperties);
-
-            printGraknLogo();
 
             Executor bootupProcessExecutor = new Executor();
             GraknDaemon daemon = new GraknDaemon(
@@ -96,7 +97,7 @@ public class GraknDaemon {
         if (!javaVersion.equals("1.8")) {
             throw new RuntimeException(ErrorMessage.UNSUPPORTED_JAVA_VERSION.getMessage(javaVersion));
         }
-        if (!graknHome.resolve("conf").toFile().exists()) {
+        if (!graknHome.resolve("server").resolve("conf").toFile().exists()) {
             throw new RuntimeException(ErrorMessage.UNABLE_TO_GET_GRAKN_HOME_FOLDER.getMessage());
         }
         if (!graknProperties.toFile().exists()) {
@@ -108,7 +109,12 @@ public class GraknDaemon {
         Path ascii = Paths.get(".", "server", "services", "grakn", "grakn-core-ascii.txt");
         if (ascii.toFile().exists()) {
             try {
-                System.out.println(new String(Files.readAllBytes(ascii), StandardCharsets.UTF_8));
+                String logoString = new String(Files.readAllBytes(ascii), StandardCharsets.UTF_8);
+                int lineLength = logoString.split("\n")[0].length();
+                int spaces = lineLength - VERSION_LABEL.length() - Version.VERSION.length();
+
+                System.out.println(logoString);
+                System.out.printf("%" + spaces + "s"+ VERSION_LABEL +"%s\n", " ", Version.VERSION);
             } catch (IOException e) {
                 // DO NOTHING
             }
@@ -122,35 +128,26 @@ public class GraknDaemon {
      *             option may be eg., `--benchmark`
      */
     public void run(String[] args) {
-        String context = args.length > 0 ? args[0] : "";
         String action = args.length > 1 ? args[1] : "";
         String option = args.length > 2 ? args[2] : "";
-
-        switch (context) {
-            case "server":
-                server(action, option);
-                break;
-            case "version":
-                version();
-                break;
-            default:
-                help();
-        }
-    }
-
-    private void server(String action, String option) {
         switch (action) {
             case "start":
+                printGraknLogo();
                 serverStart(option);
                 break;
             case "stop":
+                printGraknLogo();
                 serverStop(option);
                 break;
             case "status":
-                serverStatus(option);
+                printGraknLogo();
+                serverStatus();
                 break;
             case "clean":
                 clean();
+                break;
+            case "version":
+                version();
                 break;
             default:
                 serverHelp();
@@ -165,9 +162,12 @@ public class GraknDaemon {
             case STORAGE:
                 storageExecutor.stop();
                 break;
-            default:
+            case EMPTY_STRING:
                 serverExecutor.stop();
                 storageExecutor.stop();
+                break;
+            default:
+                serverHelp();
         }
     }
 
@@ -179,9 +179,13 @@ public class GraknDaemon {
             case STORAGE:
                 storageExecutor.startIfNotRunning();
                 break;
-            default:
+            case BENCHMARK_FLAG:
+            case EMPTY_STRING:
                 storageExecutor.startIfNotRunning();
                 serverExecutor.startIfNotRunning(arg);
+                break;
+            default:
+                serverHelp();
         }
     }
 
@@ -193,6 +197,7 @@ public class GraknDaemon {
                                    "stop [" + SERVER + "|" + STORAGE + "]   Stop Grakn (or optionally, only one of the component)\n" +
                                    "status                         Check if Grakn is running\n" +
                                    "clean                          DANGEROUS: wipe data completely\n" +
+                                   "version                        Print version of Grakn server\n" +
                                    "\n" +
                                    "Tips:\n" +
                                    "- Start Grakn with 'grakn server start'\n" +
@@ -200,32 +205,13 @@ public class GraknDaemon {
                                    "- Start Grakn with Zipkin-enabled benchmarking with `grakn server start --benchmark`");
     }
 
-    private void serverStatus(String verboseFlag) {
+    private void serverStatus() {
         storageExecutor.status();
         serverExecutor.status();
-
-        if (verboseFlag.equals("--verbose")) {
-            System.out.println("======== Failure Diagnostics ========");
-            storageExecutor.statusVerbose();
-            serverExecutor.statusVerbose();
-        }
     }
 
     private void version() {
-        System.out.println(GraknVersion.VERSION);
-    }
-
-    private void help() {
-        System.out.println("Usage: grakn COMMAND\n" +
-                                   "\n" +
-                                   "COMMAND:\n" +
-                                   "server     Manage Grakn components\n" +
-                                   "version    Print Grakn version\n" +
-                                   "help       Print this message\n" +
-                                   "\n" +
-                                   "Tips:\n" +
-                                   "- Start Grakn with 'grakn server start'\n" +
-                                   "- You can then perform queries by opening a console with 'grakn console'");
+        System.out.println(Version.VERSION);
     }
 
     private void clean() {

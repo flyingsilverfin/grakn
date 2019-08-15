@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,20 +18,21 @@
 
 package grakn.core.graql.reasoner.query;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import grakn.core.common.exception.ErrorMessage;
 import grakn.core.concept.Label;
 import grakn.core.concept.answer.ConceptMap;
 import grakn.core.concept.type.Rule;
 import grakn.core.concept.type.Type;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.reasoner.ResolutionIterator;
 import grakn.core.graql.reasoner.atom.Atom;
 import grakn.core.graql.reasoner.atom.Atomic;
 import grakn.core.graql.reasoner.state.CompositeState;
-import grakn.core.graql.reasoner.state.QueryStateBase;
+import grakn.core.graql.reasoner.state.AnswerPropagatorState;
 import grakn.core.graql.reasoner.state.ResolutionState;
 import grakn.core.graql.reasoner.unifier.MultiUnifier;
 import grakn.core.graql.reasoner.unifier.Unifier;
@@ -43,7 +44,9 @@ import graql.lang.pattern.Negation;
 import graql.lang.pattern.Pattern;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
+
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -70,7 +73,7 @@ public class CompositeQuery implements ResolvableQuery {
     final private Set<ResolvableQuery> complementQueries;
     final private TransactionOLTP tx;
 
-    CompositeQuery(Conjunction<Pattern> pattern, TransactionOLTP tx) throws GraqlQueryException{
+    CompositeQuery(Conjunction<Pattern> pattern, TransactionOLTP tx) throws GraqlSemanticException {
         Conjunction<Statement> positiveConj = Graql.and(
                 pattern.getPatterns().stream()
                         .filter(p -> !p.isNegation())
@@ -86,7 +89,7 @@ public class CompositeQuery implements ResolvableQuery {
                 .collect(Collectors.toSet());
 
         if (!isNegationSafe()){
-            throw GraqlQueryException.unsafeNegationBlock(this);
+            throw GraqlSemanticException.unsafeNegationBlock(this);
         }
     }
 
@@ -161,7 +164,7 @@ public class CompositeQuery implements ResolvableQuery {
                 .map(p -> {
                     Set<Conjunction<Pattern>> patterns = p.getNegationDNF().getPatterns();
                     if (p.getNegationDNF().getPatterns().size() != 1){
-                        throw GraqlQueryException.disjunctiveNegationBlock();
+                        throw GraqlSemanticException.disjunctiveNegationBlock();
                     }
                     return Iterables.getOnlyElement(patterns);
                 })
@@ -173,14 +176,14 @@ public class CompositeQuery implements ResolvableQuery {
      * - no negation nesting
      * - no disjunctions
      * - at most single negation block
-     * @param graph transaction to be validated against
+     * @param tx transaction to be validated against
      * @param pattern pattern to be validated
      * @return set of error messages applicable
      */
-    public static Set<String> validateAsRuleBody(Conjunction<Pattern> pattern, Rule rule, TransactionOLTP graph){
+    public static Set<String> validateAsRuleBody(Conjunction<Pattern> pattern, Rule rule, TransactionOLTP tx){
         Set<String> errors = new HashSet<>();
         try{
-            CompositeQuery body = ReasonerQueries.composite(pattern, graph);
+            CompositeQuery body = ReasonerQueries.composite(pattern, tx);
             Set<ResolvableQuery> complementQueries = body.getComplementQueries();
             if(complementQueries.size() > 1){
                 errors.add(ErrorMessage.VALIDATION_RULE_MULTIPLE_NEGATION_BLOCKS.getMessage(rule.label()));
@@ -188,7 +191,7 @@ public class CompositeQuery implements ResolvableQuery {
             if(!body.isPositive() && complementQueries.stream().noneMatch(ReasonerQuery::isPositive)){
                 errors.add(ErrorMessage.VALIDATION_RULE_NESTED_NEGATION.getMessage(rule.label()));
             }
-        } catch (GraqlQueryException e) {
+        } catch (GraqlSemanticException e) {
             errors.add(ErrorMessage.VALIDATION_RULE_INVALID.getMessage(rule.label(), e.getMessage()));
         }
         return errors;
@@ -216,9 +219,9 @@ public class CompositeQuery implements ResolvableQuery {
     }
 
     @Override
-    public ResolvableQuery neqPositive() {
+    public ResolvableQuery constantValuePredicateQuery() {
         return new CompositeQuery(
-                getConjunctiveQuery().neqPositive(),
+                getConjunctiveQuery().constantValuePredicateQuery(),
                 getComplementQueries(),
                 tx());
     }
@@ -337,24 +340,22 @@ public class CompositeQuery implements ResolvableQuery {
     }
 
     @Override
-    public ImmutableMap<Variable, Type> getVarTypeMap() {
+    public Type getUnambiguousType(Variable var, boolean inferTypes) { throw new UnsupportedOperationException(); }
+
+    @Override
+    public ImmutableSetMultimap<Variable, Type> getVarTypeMap() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ImmutableMap<Variable, Type> getVarTypeMap(boolean inferTypes) { return getVarTypeMap(); }
+    public ImmutableSetMultimap<Variable, Type> getVarTypeMap(boolean inferTypes) { return getVarTypeMap(); }
 
     @Override
-    public ImmutableMap<Variable, Type> getVarTypeMap(ConceptMap sub) { return getVarTypeMap(); }
+    public ImmutableSetMultimap<Variable, Type> getVarTypeMap(ConceptMap sub) { return getVarTypeMap(); }
 
     @Override
-    public Stream<ConceptMap> resolve() {
-        return resolve(new HashSet<>(), this.requiresReiteration());
-    }
-
-    @Override
-    public Stream<ConceptMap> resolve(Set<ReasonerAtomicQuery> subGoals, boolean reiterate){
-        return new ResolutionIterator(this, subGoals, reiterate).hasStream();
+    public Stream<ConceptMap> resolve(Set<ReasonerAtomicQuery> subGoals){
+        return new ResolutionIterator(this, subGoals).hasStream();
     }
 
     @Override
@@ -385,9 +386,14 @@ public class CompositeQuery implements ResolvableQuery {
     }
 
     @Override
-    public ResolutionState subGoal(ConceptMap sub, Unifier u, QueryStateBase parent, Set<ReasonerAtomicQuery> subGoals){
+    public ResolutionState resolutionState(ConceptMap sub, Unifier u, AnswerPropagatorState parent, Set<ReasonerAtomicQuery> subGoals){
         return isPositive()?
-                getConjunctiveQuery().subGoal(sub, u, parent, subGoals) :
+                getConjunctiveQuery().resolutionState(sub, u, parent, subGoals) :
                 new CompositeState(this, sub, u, parent, subGoals);
+    }
+
+    @Override
+    public Iterator<ResolutionState> innerStateIterator(AnswerPropagatorState parent, Set<ReasonerAtomicQuery> subGoals) {
+        return Iterators.singletonIterator(getConjunctiveQuery().resolutionState(getSubstitution(), parent.getUnifier(), parent, subGoals));
     }
 }

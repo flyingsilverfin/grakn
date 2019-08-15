@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,12 +18,19 @@
 
 package grakn.core.graql.reasoner.query;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 import grakn.core.concept.Concept;
+import grakn.core.concept.answer.ConceptMap;
+import grakn.core.concept.thing.Attribute;
 import grakn.core.concept.thing.Entity;
+import grakn.core.concept.type.AttributeType;
 import grakn.core.concept.type.EntityType;
 import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
+import grakn.core.concept.type.Rule;
 import grakn.core.graql.reasoner.atom.binary.RelationAtom;
+import grakn.core.graql.reasoner.atom.predicate.IdPredicate;
 import grakn.core.graql.reasoner.graph.GeoGraph;
 import grakn.core.graql.reasoner.rule.InferenceRule;
 import grakn.core.graql.reasoner.rule.RuleUtils;
@@ -34,14 +41,16 @@ import graql.lang.Graql;
 import graql.lang.pattern.Conjunction;
 import graql.lang.pattern.Pattern;
 import graql.lang.statement.Statement;
+import graql.lang.statement.Variable;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.util.Set;
-
+import static graql.lang.Graql.type;
 import static java.util.stream.Collectors.toSet;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
@@ -67,34 +76,32 @@ public class QueryIT {
     }
 
     @Test
-    public void testQueryReiterationCondition_CyclicalRuleGraph(){
-        try(TransactionOLTP tx = geoSession.transaction().write()) {
-            String patternString = "{ ($x, $y) isa is-located-in; };";
-            ReasonerQueryImpl query = ReasonerQueries.create(conjunction(patternString, tx), tx);
-            assertTrue(query.requiresReiteration());
-        }
-    }
-
-    @Test
-    public void testQueryReiterationCondition_CyclicalRuleGraphWithTypeHierarchiesInBodies(){
+    public void whenTypeDependencyGraphHasCycles_RuleBodiesHaveTypeHierarchies_weReiterate(){
         try (SessionImpl session = server.sessionWithNewKeyspace()) {
             try (TransactionOLTP tx = session.transaction().write()) {
 
                 Role someRole = tx.putRole("someRole");
-                Entity entity = tx.putEntityType("genericEntity")
-                        .plays(someRole)
-                        .create();
+                EntityType genericEntity = tx.putEntityType("genericEntity")
+                        .plays(someRole);
 
-                tx.putRelationType("someRelation")
-                        .relates(someRole)
-                        .create()
-                        .assign(someRole, entity);
+                Entity entity = genericEntity.create();
+                Entity anotherEntity = genericEntity.create();
+                Entity yetAnotherEntity = genericEntity.create();
+
+                RelationType someRelation = tx.putRelationType("someRelation")
+                        .relates(someRole);
+
+                someRelation.create()
+                        .assign(someRole, entity)
+                        .assign(someRole, anotherEntity);
 
                 RelationType inferredBase = tx.putRelationType("inferredBase")
                         .relates(someRole);
-                inferredBase
-                        .create()
-                        .assign(someRole, entity);
+
+                inferredBase.create()
+                        .assign(someRole, anotherEntity)
+                        .assign(someRole, yetAnotherEntity);
+
                 tx.putRelationType("inferred")
                         .relates(someRole).sup(inferredBase);
 
@@ -112,55 +119,157 @@ public class QueryIT {
             try (TransactionOLTP tx = session.transaction().write()) {
                 String patternString = "{ ($x, $y) isa inferred; };";
                 ReasonerQueryImpl query = ReasonerQueries.create(conjunction(patternString, tx), tx);
-                assertTrue(RuleUtils.subGraphIsCyclical(
-                        tx.ruleCache().getRules().map(r -> new InferenceRule(r, tx)).collect(toSet()))
-                );
-                assertTrue(query.requiresReiteration());
+                Set<InferenceRule> rules = tx.ruleCache().getRules().map(r -> new InferenceRule(r, tx)).collect(toSet());
+
+                //with cache empty no loops are found
+                assertFalse(RuleUtils.subGraphIsCyclical(rules, tx));
+                assertFalse(query.requiresReiteration());
+                query.resolve().collect(Collectors.toList());
+
+                //with populated cache we find a loop
+                assertTrue(RuleUtils.subGraphIsCyclical(rules, tx));
             }
         }
     }
 
     @Test
-    public void testQueryReiterationCondition_CyclicalRuleGraphWithTypeHierarchiesInHead(){
+    public void whenTypeDependencyGraphHasCycles_instancesHaveNonTrivialCycles_weReiterate(){
         try (SessionImpl session = server.sessionWithNewKeyspace()) {
             try (TransactionOLTP tx = session.transaction().write()) {
+                Role fromRole = tx.putRole("fromRole");
+                Role toRole = tx.putRole("toRole");
+                EntityType someEntity = tx.putEntityType("someEntity")
+                        .plays(fromRole)
+                        .plays(toRole);
 
-                tx.putEntityType("genericEntity").create();
-                EntityType baseEntity = tx.putEntityType("baseEntity");
-                baseEntity.create();
-                tx.putEntityType("subEntity").sup(baseEntity);
+                RelationType someRelation = tx.putRelationType("someRelation")
+                        .relates(fromRole)
+                        .relates(toRole);
+                RelationType transRelation = tx.putRelationType("transRelation")
+                        .relates(fromRole)
+                        .relates(toRole);
 
-                tx.putRule("rule1",
-                        Graql.parsePattern("{$x isa genericEntity;};"),
-                        Graql.parsePattern("{$x isa subEntity;};"));
-                tx.putRule("rule2",
-                        Graql.parsePattern("{$x isa baseEntity;};"),
-                        Graql.parsePattern("{$x isa genericEntity;};"));
+                Rule rule1 = tx.putRule("transRule",
+                        Graql.and(
+                                Graql.var()
+                                        .rel(type(fromRole.label().getValue()), Graql.var("x"))
+                                        .rel(type(toRole.label().getValue()), Graql.var("y"))
+                                        .isa(type(transRelation.label().getValue())),
+                                Graql.var()
+                                        .rel(type(fromRole.label().getValue()), Graql.var("y"))
+                                        .rel(type(toRole.label().getValue()), Graql.var("z"))
+                                        .isa(type(transRelation.label().getValue()))
+                        ),
+                        Graql.var()
+                                .rel(type(fromRole.label().getValue()), Graql.var("x"))
+                                .rel(type(toRole.label().getValue()), Graql.var("z"))
+                                .isa(type(transRelation.label().getValue()))
+                );
 
+                Rule rule = tx.putRule("equivRule",
+                        Graql.var()
+                                .rel(type(fromRole.label().getValue()), Graql.var("x"))
+                                .rel(type(toRole.label().getValue()), Graql.var("z"))
+                                .isa(type(someRelation.label().getValue())),
+                        Graql.var()
+                                .rel(type(fromRole.label().getValue()), Graql.var("x"))
+                                .rel(type(toRole.label().getValue()), Graql.var("z"))
+                                .isa(type(transRelation.label().getValue()))
+                );
+
+                Entity entityA = someEntity.create();
+                Entity entityB = someEntity.create();
+                Entity entityC = someEntity.create();
+                Entity entityD = someEntity.create();
+                Entity entityE = someEntity.create();
+                Entity entityF = someEntity.create();
+                Entity entityG = someEntity.create();
+
+                someRelation.create().assign(fromRole, entityA).assign(toRole, entityB);
+                someRelation.create().assign(fromRole, entityA).assign(toRole, entityC);
+                someRelation.create().assign(fromRole, entityA).assign(toRole, entityD);
+                someRelation.create().assign(fromRole, entityD).assign(toRole, entityE);
+                someRelation.create().assign(fromRole, entityE).assign(toRole, entityF);
+                someRelation.create().assign(fromRole, entityF).assign(toRole, entityA);
+                someRelation.create().assign(fromRole, entityF).assign(toRole, entityG);
                 tx.commit();
             }
             try (TransactionOLTP tx = session.transaction().write()) {
-                String patternString = "{ $x isa baseEntity;};";
+                String patternString = "{ (fromRole: $x, toRole: $y) isa transRelation; };";
                 ReasonerQueryImpl query = ReasonerQueries.create(conjunction(patternString, tx), tx);
-                assertTrue(RuleUtils.subGraphIsCyclical(
-                        tx.ruleCache().getRules().map(r -> new InferenceRule(r, tx)).collect(toSet()))
-                );
+                Set<InferenceRule> rules = tx.ruleCache().getRules().map(r -> new InferenceRule(r, tx)).collect(toSet());
+
+                //with cache empty no loops are found
+                assertFalse(RuleUtils.subGraphIsCyclical(rules, tx));
+                assertFalse(query.requiresReiteration());
+                query.resolve().collect(Collectors.toList());
+
+                //with populated cache we find a loop
+                assertTrue(RuleUtils.subGraphIsCyclical(rules, tx));
+            }
+        }
+    }
+
+    @Test
+    public void whenQueryHasMultipleDisconnectedInferrableAtoms_weReiterate(){
+        try (SessionImpl session = server.sessionWithNewKeyspace()) {
+            try(TransactionOLTP tx = session.transaction().write()) {
+                tx.execute(Graql.parse("define " +
+                        "someEntity sub entity," +
+                        "has derivedResource;" +
+                        "derivedResource sub attribute, datatype long;" +
+                        "rule1 sub rule, when{ $x isa someEntity;}, then { $x has derivedResource 1337;};"
+                ).asDefine());
+                tx.execute(Graql.parse("insert " +
+                        "$x isa someEntity;" +
+                        "$y isa someEntity;"
+                ).asInsert());
+                tx.commit();
+            }
+            Pattern pattern = Graql.and(
+                    Graql.var("x").has("derivedResource", Graql.var("value")),
+                    Graql.var("y").has("derivedResource", Graql.var("anotherValue"))
+            );
+            try (TransactionOLTP tx = session.transaction().write()) {
+                ReasonerQueryImpl query = ReasonerQueries.create(conjunction(pattern.toString(), tx), tx);
                 assertTrue(query.requiresReiteration());
             }
         }
     }
 
-    @Test //simple equality tests between original and a copy of a query
-    public void testAlphaEquivalence_QueryCopyIsAlphaEquivalent(){
-        try(TransactionOLTP tx = geoSession.transaction().write()) {
-            String patternString = "{ $x isa city;$y isa country;($x, $y) isa is-located-in; };";
-            ReasonerQueryImpl query = ReasonerQueries.create(conjunction(patternString, tx), tx);
-            queryEquivalence(query, query.copy(), true);
+
+    @Test
+    public void whenRetrievingVariablesFromQueryWithComparisons_variablesFromValuePredicatesAreFetched(){
+        try (SessionImpl session = server.sessionWithNewKeyspace()) {
+            try (TransactionOLTP tx = session.transaction().write()) {
+
+                AttributeType<Long> resource = tx.putAttributeType("resource", AttributeType.DataType.LONG);
+                resource.create(1337L);
+                resource.create(1667L);
+                tx.putEntityType("someEntity")
+                        .has(resource);
+                tx.commit();
+            }
+            try (TransactionOLTP tx = session.transaction().write()) {
+                Attribute<Long> attribute = tx.getAttributesByValue(1337L).iterator().next();
+                String basePattern = "{" +
+                        "$x isa someEntity;" +
+                        "$x has resource $value;" +
+                        "$value > $anotherValue;" +
+                        "};";
+                ReasonerQueryImpl query = ReasonerQueries.create(conjunction(basePattern, tx), tx);
+                assertEquals(
+                        Sets.newHashSet(new Variable("x"), new Variable("value"), new Variable("anotherValue")),
+                        query.getVarNames());
+                ConceptMap sub = new ConceptMap(ImmutableMap.of(new Variable("anotherValue"), attribute));
+                ReasonerQueryImpl subbedQuery = ReasonerQueries.create(query, sub);
+                assertTrue(subbedQuery.getAtoms(IdPredicate.class).findAny().isPresent());
+            }
         }
     }
 
-    @Test //check two queries are alpha-equivalent - equal up to the choice of free variables
-    public void testAlphaEquivalence() {
+    @Test
+    public void testAlphaEquivalence_simpleChainWithAttributeAndTypeGuards() {
         try(TransactionOLTP tx = geoSession.transaction().write()) {
             String patternString = "{ " +
                     "$x isa city, has name 'Warsaw';" +
@@ -182,8 +291,7 @@ public class QueryIT {
         }
     }
 
-    //TODO
-    @Ignore
+    @Ignore ("we currently do not fully support equivalence checks for non-atomic queries")
     @Test
     public void testAlphaEquivalence_chainTreeAndLoopStructure() {
         try(TransactionOLTP tx = geoSession.transaction().write()) {
@@ -310,21 +418,8 @@ public class QueryIT {
         }
     }
 
-//    Bug #11150 Relations with resources as single VarPatternAdmin
-//    TODO: replace this with different schema than genealogySchema
-//    @Test //tests whether directly and indirectly reified relations are equivalent
-//    public void testAlphaEquivalence_reifiedRelation(){
-//        TransactionImpl<?> tx = genealogySchema.tx();
-//        String patternString = "{ $rel (happening: $b, protagonist: $p) isa event-protagonist has event-role 'parent'; };";
-//        String patternString2 = "{ $rel (happening: $c, protagonist: $r) isa event-protagonist; $rel has event-role 'parent'; };";
-//
-//        ReasonerQueryImpl query = ReasonerQueries.create(conjunction(patternString, tx), tx);
-//        ReasonerQueryImpl query2 = ReasonerQueries.create(conjunction(patternString2, tx), tx);
-//        queryEquivalence(query, query2, true);
-//    }
-
     @Test
-    public void testWhenReifyingRelation_ExtraAtomIsCreatedWithUserDefinedName(){
+    public void whenReifyingRelation_extraAtomIsCreatedWithUserDefinedName(){
         try(TransactionOLTP tx = geoSession.transaction().write()) {
             String patternString = "{ (geo-entity: $x, entity-location: $y) isa is-located-in; };";
             String patternString2 = "{ ($x, $y) has name 'Poland'; };";

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -21,6 +21,7 @@ package grakn.core.graql.reasoner.cache;
 import grakn.core.concept.answer.ConceptMap;
 import grakn.core.graql.reasoner.atom.predicate.IdPredicate;
 import grakn.core.graql.reasoner.query.ReasonerAtomicQuery;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -49,7 +50,7 @@ public abstract class AtomicQueryCacheBase<
     final private Set<ReasonerAtomicQuery> completeQueries = new HashSet<>();
     final private Set<QE> completeEntries = new HashSet<>();
 
-    boolean isDBComplete(ReasonerAtomicQuery query){
+    public boolean isDBComplete(ReasonerAtomicQuery query){
         return dbCompleteEntries.contains(queryToKey(query))
                 || dbCompleteQueries.contains(query);
     }
@@ -60,6 +61,7 @@ public abstract class AtomicQueryCacheBase<
     }
 
     public void ackCompleteness(ReasonerAtomicQuery query) {
+        ackDBCompleteness(query);
         if (query.getAtom().getPredicates(IdPredicate.class).findFirst().isPresent()) {
             completeQueries.add(query);
         } else {
@@ -75,13 +77,39 @@ public abstract class AtomicQueryCacheBase<
         }
     }
 
-    @Override
-    public void clear(){
-        super.clear();
+    void unackCompleteness(ReasonerAtomicQuery query) {
+        unackDBCompleteness(query);
+        if (query.getAtom().getPredicates(IdPredicate.class).findFirst().isPresent()) {
+            completeQueries.remove(query);
+        } else {
+            completeEntries.remove(queryToKey(query));
+        }
+    }
+
+    private void unackDBCompleteness(ReasonerAtomicQuery query){
+        if (query.getAtom().getPredicates(IdPredicate.class).findFirst().isPresent()) {
+            dbCompleteQueries.remove(query);
+        } else {
+            dbCompleteEntries.remove(queryToKey(query));
+        }
+    }
+
+    void clearQueryCompleteness(){
+        dbCompleteQueries.clear();
+        completeQueries.clear();
+    }
+
+    void clearCompleteness(){
         dbCompleteQueries.clear();
         dbCompleteEntries.clear();
 
         completeQueries.clear();
         completeEntries.clear();
+    }
+
+    @Override
+    public void clear(){
+        super.clear();
+        clearCompleteness();
     }
 }

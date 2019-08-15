@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -29,14 +29,14 @@ import grakn.core.concept.answer.ConceptMap;
 import grakn.core.concept.type.EntityType;
 import grakn.core.concept.type.SchemaConcept;
 import grakn.core.concept.type.Type;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.reasoner.atom.Atom;
 import grakn.core.graql.reasoner.atom.Atomic;
 import grakn.core.graql.reasoner.atom.predicate.Predicate;
 import grakn.core.graql.reasoner.query.ReasonerQuery;
 import grakn.core.graql.reasoner.unifier.Unifier;
-import grakn.core.graql.reasoner.unifier.UnifierComparison;
 import grakn.core.graql.reasoner.unifier.UnifierImpl;
+import grakn.core.graql.reasoner.unifier.UnifierType;
 import grakn.core.server.kb.concept.ConceptUtils;
 import grakn.core.server.kb.concept.EntityTypeImpl;
 import graql.lang.pattern.Pattern;
@@ -53,10 +53,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
-import static grakn.core.common.util.CommonUtil.toImmutableList;
-
 /**
- * TypeAtom corresponding to graql a {@link IsaProperty} property.
+ * TypeAtom corresponding to graql a IsaProperty property.
  */
 @AutoValue
 public abstract class IsaAtom extends IsaAtomBase {
@@ -106,7 +104,7 @@ public abstract class IsaAtom extends IsaAtomBase {
         super.checkValid();
         SchemaConcept type = getSchemaConcept();
         if (type != null && !type.isType()) {
-            throw GraqlQueryException.cannotGetInstancesOfNonType(type.label());
+            throw GraqlSemanticException.cannotGetInstancesOfNonType(type.label());
         }
     }
 
@@ -190,7 +188,7 @@ public abstract class IsaAtom extends IsaAtomBase {
 
         return !types.isEmpty()?
                 ImmutableList.copyOf(ConceptUtils.top(types)) :
-                tx().getMetaConcept().subs().collect(toImmutableList());
+                tx().getMetaConcept().subs().collect(ImmutableList.toImmutableList());
     }
 
     @Override
@@ -212,10 +210,15 @@ public abstract class IsaAtom extends IsaAtomBase {
 
     @Override
     public Stream<ConceptMap> materialise(){
+        ConceptMap substitution = getParentQuery().getSubstitution();
         EntityType entityType = getSchemaConcept().asEntityType();
-        return Stream.of(ConceptUtils.mergeAnswers(
-                getParentQuery().getSubstitution(),
-                new ConceptMap(ImmutableMap.of(getVarName(), EntityTypeImpl.from(entityType).addEntityInferred()))
+
+        Concept foundConcept = substitution.containsVar(getVarName())? substitution.get(getVarName()) : null;
+        if (foundConcept != null) return Stream.of(substitution);
+
+        Concept concept = EntityTypeImpl.from(entityType).addEntityInferred();
+        return Stream.of(
+                ConceptUtils.mergeAnswers(substitution, new ConceptMap(ImmutableMap.of(getVarName(), concept))
         ));
     }
 
@@ -230,7 +233,7 @@ public abstract class IsaAtom extends IsaAtomBase {
     }
 
     @Override
-    public Unifier getUnifier(Atom parentAtom, UnifierComparison unifierType) {
+    public Unifier getUnifier(Atom parentAtom, UnifierType unifierType) {
         //in general this <= parent, so no specialisation viable
         if (this.getClass() != parentAtom.getClass()) return UnifierImpl.nonExistent();
         return super.getUnifier(parentAtom, unifierType);

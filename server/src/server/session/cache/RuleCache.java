@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -23,13 +23,13 @@ import com.google.common.collect.Sets;
 import grakn.core.concept.type.Rule;
 import grakn.core.concept.type.SchemaConcept;
 import grakn.core.concept.type.Type;
+import grakn.core.graql.reasoner.rule.InferenceRule;
 import grakn.core.server.kb.Schema;
 import grakn.core.server.session.TransactionOLTP;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -41,13 +41,13 @@ import static java.util.stream.Collectors.toSet;
 public class RuleCache {
 
     private final HashMultimap<Type, Rule> ruleMap = HashMultimap.create();
-    private final Map<Rule, Object> ruleConversionMap = new HashMap<>();
+    private final Map<Rule, InferenceRule> ruleConversionMap = new HashMap<>();
     private final TransactionOLTP tx;
 
     //TODO: these should be eventually stored together with statistics
     private Set<Type> absentTypes = new HashSet<>();
     private Set<Type> checkedTypes = new HashSet<>();
-    private Set<Rule> fruitlessRules = new HashSet<>();
+    private Set<Rule> unmatchableRules = new HashSet<>();
     private Set<Rule> checkedRules = new HashSet<>();
 
     public RuleCache(TransactionOLTP tx) {
@@ -127,7 +127,7 @@ public class RuleCache {
 
         return getTypes(type, direct).stream()
                 .flatMap(SchemaConcept::thenRules)
-                .filter(this::checkRule)
+                .filter(this::isRuleMatchable)
                 .peek(rule -> ruleMap.put(type, rule));
     }
 
@@ -135,10 +135,10 @@ public class RuleCache {
         if (checkedTypes.contains(type)) return !absentTypes.contains(type);
         checkedTypes.add(type);
         boolean instancePresent = type.instances().findFirst().isPresent()
-                || type.thenRules().anyMatch(this::checkRule);
+                || type.subs().flatMap(SchemaConcept::thenRules).anyMatch(this::isRuleMatchable);
         if (!instancePresent){
             absentTypes.add(type);
-            type.whenRules().forEach(r -> fruitlessRules.add(r));
+            type.whenRules().forEach(r -> unmatchableRules.add(r));
         }
         return instancePresent;
     }
@@ -148,28 +148,23 @@ public class RuleCache {
      * @param rule to be checked for matchability
      * @return true if rule is matchable (can provide answers)
      */
-    private boolean checkRule(Rule rule){
-        if (fruitlessRules.contains(rule)) return false;
+    private boolean isRuleMatchable(Rule rule){
+        if (unmatchableRules.contains(rule)) return false;
         if (checkedRules.contains(rule)) return true;
         checkedRules.add(rule);
-        return rule.whenTypes()
-                //.filter(t -> !checkedTypes.contains(t))
+        return rule.whenPositiveTypes()
                 .allMatch(this::typeHasInstances);
-                //.peek(t ->
-                //.findFirst().isPresent();
     }
 
     /**
      * @param rule      for which the parsed rule should be retrieved
-     * @param converter rule converter
-     * @param <T>       type of object converter converts to
      * @return parsed rule object
      */
-    public <T> T getRule(Rule rule, Supplier<T> converter) {
-        T match = (T) ruleConversionMap.get(rule);
+    public InferenceRule getRule(Rule rule) {
+        InferenceRule match = ruleConversionMap.get(rule);
         if (match != null) return match;
 
-        T newMatch = converter.get();
+        InferenceRule newMatch = new InferenceRule(rule, tx);
         ruleConversionMap.put(rule, newMatch);
         return newMatch;
     }
@@ -183,6 +178,6 @@ public class RuleCache {
         absentTypes.clear();
         checkedTypes.clear();
         checkedRules.clear();
-        fruitlessRules.clear();
+        unmatchableRules.clear();
     }
 }

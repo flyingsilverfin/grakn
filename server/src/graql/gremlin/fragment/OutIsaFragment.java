@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -20,8 +20,10 @@ package grakn.core.graql.gremlin.fragment;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableSet;
+import grakn.core.graql.gremlin.spanningtree.graph.InstanceNode;
 import grakn.core.graql.gremlin.spanningtree.graph.Node;
 import grakn.core.graql.gremlin.spanningtree.graph.NodeId;
+import grakn.core.graql.gremlin.spanningtree.graph.SchemaNode;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.statement.Variable;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
@@ -32,7 +34,6 @@ import org.apache.tinkerpop.gremlin.structure.Vertex;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Set;
 
 import static grakn.core.server.kb.Schema.EdgeLabel.ISA;
 import static grakn.core.server.kb.Schema.EdgeLabel.SHARD;
@@ -51,7 +52,7 @@ public abstract class OutIsaFragment extends EdgeFragment {
 
     @Override
     public GraphTraversal<Vertex, ? extends Element> applyTraversalInner(
-            GraphTraversal<Vertex, ? extends Element> traversal, TransactionOLTP graph, Collection<Variable> vars) {
+            GraphTraversal<Vertex, ? extends Element> traversal, TransactionOLTP tx, Collection<Variable> vars) {
 
         // from the traversal, branch to take either of these paths
         return Fragments.union(traversal, ImmutableSet.of(
@@ -75,12 +76,17 @@ public abstract class OutIsaFragment extends EdgeFragment {
     }
 
     @Override
-    NodeId getMiddleNodeId() {
-        return NodeId.of(NodeId.NodeType.ISA, new HashSet<>(Arrays.asList(start(), end())));
+    protected Node startNode() {
+        return new InstanceNode(NodeId.of(NodeId.Type.VAR, start()));
     }
 
     @Override
-    public boolean canOperateOnEdges() {
-        return true;
+    protected Node endNode() {
+        return new SchemaNode(NodeId.of(NodeId.Type.VAR, end()));
+    }
+
+    @Override
+    protected NodeId getMiddleNodeId() {
+        return NodeId.of(NodeId.Type.ISA, new HashSet<>(Arrays.asList(start(), end())));
     }
 }

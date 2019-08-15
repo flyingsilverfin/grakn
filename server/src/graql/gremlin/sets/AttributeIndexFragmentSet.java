@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -22,9 +22,11 @@ import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import grakn.core.concept.Label;
+import grakn.core.concept.type.AttributeType;
 import grakn.core.graql.gremlin.EquivalentFragmentSet;
 import grakn.core.graql.gremlin.fragment.Fragment;
 import grakn.core.graql.gremlin.fragment.Fragments;
+import grakn.core.server.session.TransactionOLTP;
 import graql.lang.property.VarProperty;
 import graql.lang.statement.Variable;
 
@@ -38,13 +40,13 @@ import static grakn.core.graql.gremlin.sets.EquivalentFragmentSets.fragmentSetOf
 /**
  * A query can use a more-efficient attribute index traversal when the following criteria are met:
  * <p>
- * 1. There is an {@link IsaFragmentSet} and a {@link ValueFragmentSet} referring to the same instance {@link Variable}.
- * 2. The {@link IsaFragmentSet} refers to a type {@link Variable} with a {@link LabelFragmentSet}.
- * 3. The {@link LabelFragmentSet} refers to one type in the knowledge base.
- * 4. The {@link ValueFragmentSet} is an equality predicate referring to a literal value.
+ * 1. There is an IsaFragmentSet and a ValueFragmentSet referring to the same instance Variable.
+ * 2. The IsaFragmentSet refers to a type Variable with a LabelFragmentSet.
+ * 3. The LabelFragmentSet refers to one type in the knowledge base.
+ * 4. The ValueFragmentSet is an equality predicate referring to a literal value.
  * <p>
- * When all these criteria are met, the fragments representing the {@link IsaFragmentSet} and the
- * {@link ValueFragmentSet} can be replaced with a {@link AttributeIndexFragmentSet} that will use the attribute index
+ * When all these criteria are met, the fragments representing the IsaFragmentSet and the
+ * ValueFragmentSet can be replaced with a AttributeIndexFragmentSet that will use the attribute index
  * to perform a unique lookup in constant time.
  *
  */
@@ -70,7 +72,7 @@ abstract class AttributeIndexFragmentSet extends EquivalentFragmentSet {
     abstract Label label();
     abstract Object value();
 
-    static final FragmentSetOptimisation ATTRIBUTE_INDEX_OPTIMISATION = (fragmentSets, graph) -> {
+    static final FragmentSetOptimisation ATTRIBUTE_INDEX_OPTIMISATION = (fragmentSets, tx) -> {
         Iterable<ValueFragmentSet> valueSets = equalsValueFragments(fragmentSets)::iterator;
 
         for (ValueFragmentSet valueSet : valueSets) {
@@ -88,7 +90,7 @@ abstract class AttributeIndexFragmentSet extends EquivalentFragmentSet {
 
             if (labels.size() == 1) {
                 Label label = Iterables.getOnlyElement(labels);
-                optimise(fragmentSets, valueSet, isaSet, label);
+                optimise(tx, fragmentSets, valueSet, isaSet, label);
                 return true;
             }
         }
@@ -97,7 +99,7 @@ abstract class AttributeIndexFragmentSet extends EquivalentFragmentSet {
     };
 
     private static void optimise(
-            Collection<EquivalentFragmentSet> fragmentSets, ValueFragmentSet valueSet, IsaFragmentSet isaSet,
+            TransactionOLTP tx, Collection<EquivalentFragmentSet> fragmentSets, ValueFragmentSet valueSet, IsaFragmentSet isaSet,
             Label label
     ) {
         // Remove fragment sets we are going to replace
@@ -112,6 +114,15 @@ abstract class AttributeIndexFragmentSet extends EquivalentFragmentSet {
         }
 
         Object value = valueSet.operation().value();
+
+        AttributeType.DataType<?> dataType = tx.getAttributeType(label.getValue()).dataType();
+        if (Number.class.isAssignableFrom(dataType.dataClass())) {
+            if (dataType.dataClass() == Long.class && value instanceof Double && ((Double) value % 1 == 0)) {
+                value = ((Double) value).longValue();
+            } else if (dataType.dataClass() == Double.class && value instanceof Long) {
+                value = ((Long) value).doubleValue();
+            }
+        }
         AttributeIndexFragmentSet indexFragmentSet = AttributeIndexFragmentSet.of(attribute, label, value);
         fragmentSets.add(indexFragmentSet);
     }

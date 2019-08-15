@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -22,15 +22,15 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Sets;
 import grakn.core.concept.answer.ConceptMap;
 import grakn.core.concept.type.SchemaConcept;
+import grakn.core.concept.type.Type;
 import grakn.core.graql.reasoner.query.ReasonerAtomicQuery;
-import grakn.core.graql.reasoner.query.ReasonerQueries;
+import grakn.core.graql.reasoner.rule.RuleUtils;
 import grakn.core.graql.reasoner.unifier.MultiUnifier;
 import grakn.core.graql.reasoner.unifier.MultiUnifierImpl;
 import grakn.core.graql.reasoner.unifier.UnifierType;
 import grakn.core.graql.reasoner.utils.Pair;
 import graql.lang.statement.Variable;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -57,7 +57,7 @@ import static java.util.stream.Collectors.toSet;
  *
  * i. e. the set of answers of C is a subset of the set of answers of P.
  *
- * - query semantic difference {@link SemanticDifference}
+ * - query semantic difference SemanticDifference
  * Semantic difference between query C and P defines a specialisation operation
  * required to transform query P into a query equivalent to C.
  *
@@ -76,6 +76,12 @@ public abstract class SemanticCache<
     final private HashMultimap<QE, QE> parents = HashMultimap.create();
 
     UnifierType semanticUnifier(){ return UnifierType.RULE;}
+
+    @Override
+    public boolean isComplete(ReasonerAtomicQuery query){
+        return super.isComplete(query)
+                || getParents(query).stream().anyMatch(q -> super.isComplete(keyToQuery(q)));
+    }
 
     @Override
     public void clear(){
@@ -115,28 +121,40 @@ public abstract class SemanticCache<
         return cacheEntry;
     }
 
-    @Override
-    public boolean isComplete(ReasonerAtomicQuery query){
-        return super.isComplete(query)
-                || getParents(query).stream().anyMatch(q -> super.isComplete(keyToQuery(q)));
+    public void ackInsertion(){
+        //NB: we do a full completion flush to not add too much overhead to inserts
+        clearCompleteness();
     }
 
-    @Override
-    public void ackCompleteness(ReasonerAtomicQuery query) {
-        super.ackCompleteness(query);
-        getChildren(query).stream()
-                .filter(q -> !isComplete(keyToQuery(q)))
-                .forEach(childKey -> {
-            ReasonerAtomicQuery child = keyToQuery(childKey);
-            CacheEntry<ReasonerAtomicQuery, SE> childEntry = getEntry(child);
-            if (childEntry != null){
-                propagateAnswersToQuery(child, childEntry, true);
-                ackCompleteness(child);
-            }
-        });
+    public void ackDeletion(Type type){
+        //flush db complete queries
+        clearQueryCompleteness();
+
+        //evict entries of the type and those that might be affected by the type
+        RuleUtils.getDependentTypes(type).stream()
+                .flatMap(Type::sups)
+                .flatMap(t -> getFamily(t).stream())
+                .map(this::keyToQuery)
+                .peek(this::unackCompleteness)
+                .forEach(this::removeEntry);
     }
 
-    private Set<QE> getParents(ReasonerAtomicQuery child){
+    /**
+     * propagate answers within the cache (children fetch answers from parents)
+     */
+    public void propagateAnswers(){
+        queries().stream()
+                .filter(this::isComplete)
+                .forEach(child-> {
+                    CacheEntry<ReasonerAtomicQuery, SE> childEntry = getEntry(child);
+                    if (childEntry != null) {
+                        propagateAnswersToQuery(child, childEntry, true);
+                        ackCompleteness(child);
+                    }
+                });
+    }
+
+    public Set<QE> getParents(ReasonerAtomicQuery child){
         Set<QE> parents = this.parents.get(queryToKey(child));
         if (parents.isEmpty()) parents = computeParents(child);
         return parents.stream()
@@ -144,30 +162,21 @@ public abstract class SemanticCache<
                 .collect(toSet());
     }
 
-    private Set<QE> getChildren(ReasonerAtomicQuery parent){
-        Set<QE> family = getFamily(parent);
-        Set<QE> children = new HashSet<>();
-        family.stream()
-                .map(this::keyToQuery)
-                //.filter(potentialChild -> !unifierType().equivalence().equivalent(potentialChild, parent))
-                .filter(potentialChild -> potentialChild.subsumes(parent))
-                .map(this::queryToKey)
-                .forEach(children::add);
-        return children;
+    public Set<QE> getFamily(SchemaConcept type){
+        return families.get(type);
     }
 
     /**
-     *
      * @param query to find
-     * @return
+     * @return queries that belong to the same family as input query
      */
-    private Set<QE> getFamily(ReasonerAtomicQuery query){
+    private Stream<QE> getFamily(ReasonerAtomicQuery query){
         SchemaConcept schemaConcept = query.getAtom().getSchemaConcept();
-        if (schemaConcept == null) return new HashSet<>();
+        if (schemaConcept == null) return Stream.empty();
         Set<QE> family = families.get(schemaConcept);
         return family != null?
-                family.stream().filter(q -> !q.equals(queryToKey(query))).collect(toSet()) :
-                new HashSet<>();
+                family.stream().filter(q -> !q.equals(queryToKey(query))) :
+                Stream.empty();
     }
 
     private void updateFamily(ReasonerAtomicQuery query){
@@ -184,9 +193,8 @@ public abstract class SemanticCache<
     }
 
     private Set<QE> computeParents(ReasonerAtomicQuery child){
-        Set<QE> family = getFamily(child);
         Set<QE> computedParents = new HashSet<>();
-        family.stream()
+        getFamily(child)
                 .map(this::keyToQuery)
                 .filter(child::subsumes)
                 .map(this::queryToKey)
@@ -200,9 +208,9 @@ public abstract class SemanticCache<
      * NB: target and childMatch.query() are in general not the same hence explicit arguments
      * @param target query we want propagate the answers to
      * @param childMatch entry to which we want to propagate answers
-     * @param inferred true if inferred answers should be propagated
+     * @param fetchInferred true if inferred answers should be propagated
      */
-    private boolean propagateAnswersToQuery(ReasonerAtomicQuery target, CacheEntry<ReasonerAtomicQuery, SE> childMatch, boolean inferred){
+    private boolean propagateAnswersToQuery(ReasonerAtomicQuery target, CacheEntry<ReasonerAtomicQuery, SE> childMatch, boolean fetchInferred){
         ReasonerAtomicQuery child = childMatch.query();
         boolean[] newAnswersFound = {false};
         boolean childGround = child.isGround();
@@ -212,7 +220,9 @@ public abstract class SemanticCache<
                     if (parentDbComplete || childGround){
                         boolean parentComplete = isComplete(keyToQuery(parent));
                         CacheEntry<ReasonerAtomicQuery, SE> parentMatch = getEntry(keyToQuery(parent));
-                        boolean newAnswers = propagateAnswers(parentMatch, childMatch, inferred || parentComplete);
+
+                        boolean propagateInferred = fetchInferred || parentComplete || child.getAtom().getVarName().isReturned();
+                        boolean newAnswers = propagateAnswers(parentMatch, childMatch, propagateInferred);
                         newAnswersFound[0] = newAnswers;
                         if (parentDbComplete || newAnswers) ackDBCompleteness(target);
                         if (parentComplete) ackCompleteness(target);
@@ -229,6 +239,7 @@ public abstract class SemanticCache<
             @Nullable MultiUnifier unifier) {
 
         validateAnswer(answer, query, query.getVarNames());
+        if (query.hasUniqueAnswer()) ackCompleteness(query);
 
         /*
          * find SE entry
@@ -251,20 +262,6 @@ public abstract class SemanticCache<
         return addEntry(createEntry(query, Sets.newHashSet(answer)));
     }
 
-    @Override
-    public CacheEntry<ReasonerAtomicQuery, SE> record(ReasonerAtomicQuery query, Set<ConceptMap> answers) {
-        ConceptMap first = answers.stream().findFirst().orElse(null);
-        if (first == null) return null;
-        CacheEntry<ReasonerAtomicQuery, SE> record = record(query, first);
-        Sets.difference(answers, Sets.newHashSet(first)).forEach(ans -> record(query, ans, record, null));
-        return record;
-    }
-
-    @Override
-    public CacheEntry<ReasonerAtomicQuery, SE> record(ReasonerAtomicQuery query, Stream<ConceptMap> answers) {
-        return record(query, answers.collect(toSet()));
-    }
-
     private Pair<Stream<ConceptMap>, MultiUnifier> getDBAnswerStreamWithUnifier(ReasonerAtomicQuery query){
         return new Pair<>(
                 structuralCache().get(query),
@@ -280,7 +277,6 @@ public abstract class SemanticCache<
         boolean queryGround = query.isGround();
 
         if (match != null) {
-            LOG.trace("Query Cache match: {}, size: {}", match.query(), match.cachedElement().size());
             boolean answersToGroundQuery = false;
             boolean queryDBComplete = isDBComplete(query);
             if (queryGround) {
@@ -333,16 +329,5 @@ public abstract class SemanticCache<
                 answerStreamWithUnifier.getKey().collect(toSet()),
                 answerStreamWithUnifier.getValue()
         );
-    }
-
-    @Override
-    public ConceptMap findAnswer(ReasonerAtomicQuery query, ConceptMap ans) {
-        if(ans.isEmpty()) return ans;
-        ConceptMap answer = getAnswerStreamWithUnifier(ReasonerQueries.atomic(query, ans)).getKey().findFirst().orElse(null);
-        if (answer != null) return answer;
-
-        //TODO should it create a cache entry?
-        List<ConceptMap> answers = query.tx().execute(ReasonerQueries.create(query, ans).getQuery(), false);
-        return answers.isEmpty()? new ConceptMap() : answers.iterator().next();
     }
 }

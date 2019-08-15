@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -30,16 +30,14 @@ commands:
       - run: curl -OL https://raw.githubusercontent.com/graknlabs/build-tools/master/ci/install-bazel-mac.sh
       - run: bash ./install-bazel-mac.sh && rm ./install-bazel-mac.sh
 
-  install-rpm:
-    steps:
-      - run: sudo apt update && sudo apt install rpm -y
-
   run-bazel-rbe:
     parameters:
       command:
         type: string
     steps:
-      - run: bazel run @graknlabs_build_tools//ci:run-bazel-rbe -- << parameters.command >>
+      - run:
+          command: bazel run @graknlabs_build_tools//ci:run-bazel-rbe -- << parameters.command >>
+          no_output_timeout: 1h
 
 jobs:
   build:
@@ -47,12 +45,16 @@ jobs:
     working_directory: ~/grakn
     steps:
       - install-bazel-linux-rbe
-      - install-rpm
       - checkout
       - run: bazel run @graknlabs_build_tools//checkstyle:test-coverage
+      - run: |
+          SONARCLOUD_CODE_ANALYSIS_CREDENTIAL=$SONARCLOUD_CREDENTIAL \
+            bazel run @graknlabs_build_tools//sonarcloud:code-analysis -- \
+            --organisation $SONARCLOUD_ORGANISATION --project-key $SONARCLOUD_PROJECT \
+            --commit-id=$CIRCLE_SHA1 --branch=$CIRCLE_BRANCH
       - run-bazel-rbe:
           command: bazel build //...
-
+  
   test-common:
     machine: true
     working_directory: ~/grakn
@@ -67,7 +69,6 @@ jobs:
     working_directory: ~/grakn
     steps:
       - install-bazel-linux-rbe
-      - install-rpm
       - checkout
       - run-bazel-rbe:
           command: bazel test //console/... --test_output=errors
@@ -77,7 +78,6 @@ jobs:
     working_directory: ~/grakn
     steps:
       - install-bazel-linux-rbe
-      - install-rpm
       - checkout
       - run-bazel-rbe:
           command: bazel test //server/... --test_output=errors
@@ -124,17 +124,25 @@ jobs:
 
   test-assembly-mac-zip:
     macos:
-      xcode: "9.0"
+      xcode: "10.2.1"
     working_directory: ~/grakn
     steps:
       - install-bazel-mac
       - checkout
       - run-bazel-rbe:
           command: bazel build //:assemble-mac-zip
+      - run: RELEASE_APPROVAL_TOKEN=$REPO_GITHUB_TOKEN bazel run @graknlabs_build_tools//ci:test-cache -- --file $(pwd)/bazel-genfiles/grakn-core-all-mac.zip --get
       - run: unzip bazel-genfiles/grakn-core-all-mac.zip -d bazel-genfiles/
       - run: nohup bazel-genfiles/grakn-core-all-mac/grakn server start
       - run: bazel test //test/common:grakn-application-test --test_output=streamed --spawn_strategy=standalone --cache_test_results=no
       - run: bazel-genfiles/grakn-core-all-mac/grakn server stop
+      - run: RELEASE_APPROVAL_TOKEN=$REPO_GITHUB_TOKEN bazel run @graknlabs_build_tools//ci:test-cache -- --file $(pwd)/bazel-genfiles/grakn-core-all-mac.zip --save-success
+      - store_artifacts:
+          path: bazel-genfiles/grakn-core-all-mac/logs/grakn.log
+          destination: logs/grakn.log
+      - store_artifacts:
+          path: bazel-genfiles/grakn-core-all-mac/logs/cassandra.log
+          destination: logs/cassandra.log
 
   test-assembly-windows-zip:
     machine: true
@@ -144,6 +152,12 @@ jobs:
       - run:
           command: test/assembly/windows/windows-zip.py
           no_output_timeout: 20m
+      - store_artifacts:
+          path: ./grakn.log
+          destination: logs/grakn.log
+      - store_artifacts:
+          path: ./cassandra.log
+          destination: logs/cassandra.log
 
   test-assembly-linux-targz:
     machine: true
@@ -153,10 +167,18 @@ jobs:
       - checkout
       - run-bazel-rbe:
           command: bazel build //:assemble-linux-targz
+      - run: RELEASE_APPROVAL_TOKEN=$REPO_GITHUB_TOKEN bazel run @graknlabs_build_tools//ci:test-cache -- --file $(pwd)/bazel-genfiles/grakn-core-all-linux.tar.gz --get
       - run: tar -xf bazel-genfiles/grakn-core-all-linux.tar.gz -C bazel-genfiles
       - run: nohup bazel-genfiles/grakn-core-all-linux/grakn server start
       - run: bazel test //test/common:grakn-application-test --test_output=streamed --spawn_strategy=standalone --cache_test_results=no
       - run: bazel-genfiles/grakn-core-all-linux/grakn server stop
+      - run: RELEASE_APPROVAL_TOKEN=$REPO_GITHUB_TOKEN bazel run @graknlabs_build_tools//ci:test-cache -- --file $(pwd)/bazel-genfiles/grakn-core-all-linux.tar.gz --save-success
+      - store_artifacts:
+          path: bazel-genfiles/grakn-core-all-linux/logs/grakn.log
+          destination: logs/grakn.log
+      - store_artifacts:
+          path: bazel-genfiles/grakn-core-all-linux/logs/cassandra.log
+          destination: logs/cassandra.log
 
   test-assembly-linux-apt:
     machine: true
@@ -177,6 +199,12 @@ jobs:
       - run: nohup grakn server start
       - run: bazel test //test/common:grakn-application-test --test_output=streamed --spawn_strategy=standalone --cache_test_results=no
       - run: grakn server stop
+      - store_artifacts:
+          path: /opt/grakn/core/logs/grakn.log
+          destination: logs/grakn.log
+      - store_artifacts:
+          path: /opt/grakn/core/logs/cassandra.log
+          destination: logs/cassandra.log
 
   test-assembly-docker:
     machine: true
@@ -185,6 +213,12 @@ jobs:
       - install-bazel-linux-rbe
       - checkout
       - run: test/assembly/docker.py
+      - store_artifacts:
+          path: ./grakn.log
+          destination: logs/grakn.log
+      - store_artifacts:
+          path: ./cassandra.log
+          destination: logs/cassandra.log
 
   deploy-maven-snapshot:
     machine: true
@@ -196,7 +230,6 @@ jobs:
           export DEPLOY_MAVEN_USERNAME=$REPO_GRAKN_USERNAME
           export DEPLOY_MAVEN_PASSWORD=$REPO_GRAKN_PASSWORD
           bazel run //api:deploy-maven -- snapshot $CIRCLE_SHA1
-          bazel run //protocol:deploy-maven -- snapshot $CIRCLE_SHA1
           bazel run //concept:deploy-maven -- snapshot $CIRCLE_SHA1
           bazel run //common:deploy-maven -- snapshot $CIRCLE_SHA1
 
@@ -254,11 +287,19 @@ jobs:
       - run: sudo apt update
       - run: mv ~/circleci-workspace/VERSION.apt VERSION
       - run: cat VERSION
-      - run: sudo apt install grakn-core-all=$(cat VERSION)
+      - run: |
+          sudo apt install grakn-core-all=$(cat VERSION) grakn-core-bin=$(cat VERSION) \
+                           grakn-core-server=$(cat VERSION) grakn-core-console=$(cat VERSION)
       - run: sudo chown -R circleci:circleci /opt/grakn/ # TODO: how do we avoid having to chown?
       - run: nohup grakn server start
       - run: bazel test //test/common:grakn-application-test --test_output=streamed --spawn_strategy=standalone --cache_test_results=no
       - run: grakn server stop
+      - store_artifacts:
+          path: /opt/grakn/core/logs/grakn.log
+          destination: logs/grakn.log
+      - store_artifacts:
+          path: /opt/grakn/core/logs/cassandra.log
+          destination: logs/cassandra.log
 
   test-deployment-linux-rpm:
     machine: true
@@ -269,19 +310,26 @@ jobs:
           at: ~/circleci-workspace
       - run: mv ~/circleci-workspace/VERSION.rpm VERSION
       - run: test/deployment/rpm.py
+      - store_artifacts:
+          path: ./grakn.log
+          destination: logs/grakn.log
+      - store_artifacts:
+          path: ./cassandra.log
+          destination: logs/cassandra.log
 
-  sync-dependencies:
+  sync-dependencies-snapshot:
     machine: true
     steps:
       - install-bazel-linux-rbe
       - checkout
       - run: |
-          export SYNC_DEPENDENCIES_TOKEN=$REPO_GITHUB_TOKEN_GRABL
+          export SYNC_DEPENDENCIES_TOKEN=$REPO_GITHUB_TOKEN
           bazel run @graknlabs_build_tools//ci:sync-dependencies -- \
           --source grakn@$CIRCLE_SHA1 \
           --targets \
-          client-java:master client-python:master client-nodejs:master \
-          workbase:master docs:development examples:development benchmark:master
+          grakn-kgms:master workbase:master docs:master examples:master \
+          benchmark:master client-java:master kglib:master
+        # TODO: Remove benchmark and client-java once #5272 is solved
 
   release-approval:
     machine: true
@@ -289,7 +337,8 @@ jobs:
       - install-bazel-linux-rbe
       - checkout
       - run: |
-          export RELEASE_APPROVAL_TOKEN=$REPO_GITHUB_TOKEN_GRABL
+          export RELEASE_APPROVAL_USERNAME=$REPO_GITHUB_USERNAME
+          export RELEASE_APPROVAL_TOKEN=$REPO_GITHUB_TOKEN
           bazel run @graknlabs_build_tools//ci:release-approval
 
   deploy-github:
@@ -299,7 +348,11 @@ jobs:
       - install-bazel-linux-rbe
       - checkout
       - run: |
-          export DEPLOY_GITHUB_TOKEN=$REPO_GITHUB_TOKEN_GRABL
+          pip install certifi
+          export RELEASE_NOTES_TOKEN=$REPO_GITHUB_TOKEN
+          bazel run @graknlabs_build_tools//ci:release-notes -- grakn $(cat VERSION) ./RELEASE_TEMPLATE.md
+      - run: |
+          export DEPLOY_GITHUB_TOKEN=$REPO_GITHUB_TOKEN
           bazel run //:deploy-github -- $CIRCLE_SHA1
 
   deploy-apt:
@@ -340,7 +393,7 @@ jobs:
       - install-bazel-linux-rbe
       - checkout
       - run: |
-          export DEPLOY_BREW_TOKEN=$REPO_GITHUB_TOKEN_GRABL
+          export DEPLOY_BREW_TOKEN=$REPO_GITHUB_TOKEN
           bazel run //:deploy-brew -- release
 
   deploy-docker:
@@ -364,15 +417,43 @@ jobs:
           export DEPLOY_MAVEN_USERNAME=$REPO_GRAKN_USERNAME
           export DEPLOY_MAVEN_PASSWORD=$REPO_GRAKN_PASSWORD
           bazel run //api:deploy-maven -- release $(cat VERSION)
-          bazel run //protocol:deploy-maven -- release $(cat VERSION)
           bazel run //concept:deploy-maven -- release $(cat VERSION)
           bazel run //common:deploy-maven -- release $(cat VERSION)
+
+  sync-dependencies-release:
+    machine: true
+    steps:
+      - install-bazel-linux-rbe
+      - checkout
+      - run: |
+          export SYNC_DEPENDENCIES_TOKEN=$REPO_GITHUB_TOKEN
+          bazel run @graknlabs_build_tools//ci:sync-dependencies -- \
+          --source grakn@$(cat VERSION) \
+          --targets \
+          grakn-kgms:master benchmark:master workbase:master biograkn:master \
+          client-java:master client-python:master client-nodejs:master \
+          docs:master examples:master kglib:master
 
   release-cleanup:
     machine: true
     steps:
       - checkout
       - run: git push --delete origin grakn-release-branch
+
+  email-db-engines:
+    machine: true
+    working_directory: ~/grakn
+    steps:
+      - run: wget https://raw.githubusercontent.com/graknlabs/grabl/master/requirements.txt
+      - run: wget https://raw.githubusercontent.com/graknlabs/grabl/master/send_email.py
+      - run: pyenv install 3.6.3
+      - run: pyenv global 3.6.3
+      - run: pip3 install -r requirements.txt
+      - run: |
+          python send_email.py \
+          --recipients "paul.andlinger@solid-it.at, tomas@grakn.ai" \
+          --subject "Please update Grakn version" \
+          --body "This is an automated email to inform you that Grakn $(cat VERSION) has been released. Please update the Grakn version accordingly."
 
 workflows:
   grakn-core:
@@ -516,7 +597,7 @@ workflows:
               only: master
           requires:
             - deploy-rpm-snapshot
-      - sync-dependencies:
+      - sync-dependencies-snapshot:
           filters:
             branches:
               only: master
@@ -529,7 +610,7 @@ workflows:
             branches:
               only: master
           requires:
-            - sync-dependencies
+            - sync-dependencies-snapshot
 
   grakn-core-release:
     jobs:
@@ -574,7 +655,7 @@ workflows:
               only: grakn-release-branch
           requires:
             - deploy-approval
-      - release-cleanup:
+      - sync-dependencies-release:
           filters:
             branches:
               only: grakn-release-branch
@@ -584,3 +665,15 @@ workflows:
             - deploy-brew
             - deploy-docker
             - deploy-maven
+      - email-db-engines:
+          filters:
+            branches:
+              only: grakn-release-branch
+          requires:
+            - sync-dependencies-release
+      - release-cleanup:
+          filters:
+            branches:
+              only: grakn-release-branch
+          requires:
+            - sync-dependencies-release

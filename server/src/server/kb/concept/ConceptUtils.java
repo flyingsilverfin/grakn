@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -22,22 +22,27 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import grakn.core.concept.Concept;
 import grakn.core.concept.answer.ConceptMap;
+import grakn.core.concept.thing.Thing;
 import grakn.core.concept.type.SchemaConcept;
 import grakn.core.server.kb.Schema;
 import graql.lang.statement.Variable;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 
 public class ConceptUtils {
+
     /**
      * @param schemaConcepts entry {@link SchemaConcept} set
-     * @return top non-meta {@link SchemaConcept}s from within the provided set
+     * @return top (most general) non-meta {@link SchemaConcept}s from within the provided set
      */
     public static <T extends SchemaConcept> Set<T> top(Set<T> schemaConcepts) {
         return schemaConcepts.stream()
@@ -47,7 +52,7 @@ public class ConceptUtils {
 
     /**
      * @param schemaConcepts entry {@link SchemaConcept} set
-     * @return bottom non-meta {@link SchemaConcept}s from within the provided set
+     * @return bottom (most specific) non-meta {@link SchemaConcept}s from within the provided set
      */
     public static <T extends SchemaConcept> Set<T> bottom(Set<T> schemaConcepts) {
         return schemaConcepts.stream()
@@ -87,7 +92,7 @@ public class ConceptUtils {
      * @param direct flag indicating whether only direct types should be considered
      * @return true if child is a subtype of parent
      */
-    public static boolean typesCompatible(SchemaConcept parent, SchemaConcept child, boolean direct) {
+    private static boolean typesCompatible(SchemaConcept parent, SchemaConcept child, boolean direct) {
         if (parent == null ) return true;
         if (child == null) return false;
         if (direct) return parent.equals(child);
@@ -100,13 +105,51 @@ public class ConceptUtils {
         return false;
     }
 
+    /**
+     * @param parentTypes set of types defining parent, parent defines type constraints to be fulfilled
+     * @param childTypes set of types defining child
+     * @param direct flag indicating whether only direct types should be considered
+     * @return true if type sets are disjoint - it's possible to find a disjoint pair among parent and child set
+     */
+    public static boolean areDisjointTypeSets(Set<? extends SchemaConcept>  parentTypes, Set<? extends SchemaConcept> childTypes, boolean direct) {
+        return childTypes.isEmpty() && !parentTypes.isEmpty()
+                || parentTypes.stream().anyMatch(parent -> childTypes.stream()
+                .anyMatch(child -> ConceptUtils.areDisjointTypes(parent, child, direct)));
+    }
+
     /** determines disjointness of parent-child types, parent defines the bound on the child
      * @param parent {@link SchemaConcept}
      * @param child {@link SchemaConcept}
-     * @return true if types do not belong to the same type hierarchy, also true if parent is null and false if parent non-null and child null
+     * @param direct flag indicating whether only direct types should be considered
+     * @return true if types do not belong to the same type hierarchy, also:
+     * - true if parent is null and
+     * - false if parent non-null and child null - parents defines a constraint to satisfy
      */
     public static boolean areDisjointTypes(SchemaConcept parent, SchemaConcept child, boolean direct) {
         return parent != null && child == null || !typesCompatible(parent, child, direct) && !typesCompatible(child, parent, direct);
+    }
+
+    /**
+     * Computes dependent concepts of a thing - concepts that need to be persisted if we persist the provided thing.
+     * @param topThings things dependants of which we want to retrieve
+     * @return stream of things that are dependants of the provided thing - includes non-direct dependants.
+     */
+    public static Stream<Thing> getDependentConcepts(Collection<Thing> topThings){
+        Set<Thing> things = new HashSet<>(topThings);
+        Set<Thing> visitedThings = new HashSet<>();
+        Stack<Thing> thingStack = new Stack<>();
+        thingStack.addAll(topThings);
+        while(!thingStack.isEmpty()) {
+            Thing thing = thingStack.pop();
+            if (!visitedThings.contains(thing)){
+                thing.getDependentConcepts()
+                        .peek(things::add)
+                        .filter(t -> !visitedThings.contains(t))
+                        .forEach(thingStack::add);
+                visitedThings.add(thing);
+            }
+        }
+        return things.stream();
     }
 
     /**

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -31,13 +31,12 @@ import grakn.core.server.session.TransactionOLTP;
 import graql.lang.Graql;
 import graql.lang.query.GraqlGet;
 import graql.lang.statement.Variable;
-import org.junit.ClassRule;
-import org.junit.Test;
-
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.ClassRule;
+import org.junit.Test;
 
 import static grakn.core.server.kb.Schema.ImplicitType.HAS;
 import static grakn.core.server.kb.Schema.ImplicitType.HAS_OWNER;
@@ -68,12 +67,25 @@ public class ReasoningIT {
     //as specified in the respective comments below.
 
     @Test
+    public void whenMaterialising_duplicatesAreNotCreated(){
+        try(SessionImpl session = server.sessionWithNewKeyspace()) {
+            loadFromFileAndCommit(resourcePath, "duplicateMaterialisation.gql", session);
+            try (TransactionOLTP tx = session.transaction().write()) {
+                List<ConceptMap> answers = tx.execute(Graql.parse(
+                        "match " +
+                                "$rel has inferredAttribute 'inferredRelation';" +
+                                "get;")
+                        .asGet());
+                assertEquals(25, answers.size());
+            }
+        }
+    }
+
+    @Test
     public void attributeOwnerResultsAreConsistentBetweenDifferentAccessPoints(){
         try(SessionImpl session = server.sessionWithNewKeyspace()) {
             loadFromFileAndCommit(resourcePath, "resourceDirectionality.gql", session);
             try (TransactionOLTP tx = session.transaction().write()) {
-                
-
                 List<ConceptMap> answers = tx.execute(Graql.parse("match $x isa specific-indicator;get;").asGet(), false);
 
                 Concept indicator = answers.iterator().next().get("x");
@@ -568,7 +580,7 @@ public class ReasoningIT {
         try(SessionImpl session = server.sessionWithNewKeyspace()) {
             loadFromFileAndCommit(resourcePath, "appendingRPs.gql", session);
             try (TransactionOLTP tx = session.transaction().read()) {
-                List<ConceptMap> persistedRelations = tx.execute(Graql.parse("match $r isa relation0; get;").asGet(), false);
+                List<ConceptMap> persistedRelations = tx.execute(Graql.parse("match $r isa baseRelation; get;").asGet(), false);
 
                 List<ConceptMap> answers = tx.execute(Graql.<GraqlGet>parse("match (someRole: $x, anotherRole: $y, anotherRole: $z, inferredRole: $z); $y != $z;get;"));
                 assertEquals(1, answers.size());
@@ -595,7 +607,7 @@ public class ReasoningIT {
                         "get;"));
                 assertEquals(2, answers5.size());
 
-                assertEquals("New relations were created!", persistedRelations, tx.execute(Graql.parse("match $r isa relation0; get;").asGet(), false));
+                assertEquals("New relations were created!", persistedRelations, tx.execute(Graql.parse("match $r isa baseRelation; get;").asGet(), false));
             }
         }
     }
@@ -605,9 +617,8 @@ public class ReasoningIT {
         try(SessionImpl session = server.sessionWithNewKeyspace()) {
             loadFromFileAndCommit(resourcePath, "appendingRPs.gql", session);
             try (TransactionOLTP tx = session.transaction().read()) {
-
-                List<ConceptMap> persistedRelations = tx.execute(Graql.parse("match $r isa relation0; get;").asGet(), false);
-                List<ConceptMap> inferredRelations = tx.execute(Graql.parse("match $r isa relation0; get;").asGet());
+                List<ConceptMap> persistedRelations = tx.execute(Graql.parse("match $r isa baseRelation; get;").asGet(), false);
+                List<ConceptMap> inferredRelations = tx.execute(Graql.parse("match $r isa baseRelation; get;").asGet());
                 assertCollectionsNonTriviallyEqual("New relations were created!", persistedRelations, inferredRelations);
 
                 Set<ConceptMap> variants = Stream.of(
@@ -620,14 +631,23 @@ public class ReasoningIT {
                         .collect(Collectors.toSet());
 
                 assertCollectionsNonTriviallyEqual("Rules are not matched correctly!", variants, inferredRelations);
+                }
+        }
+    }
 
+    @Test //when rule are defined to append new RPs no new relation instances should be created
+    public void whenAppendingRolePlayers_whenHeadRelationHasSymmetricRoles_answersContainAllPermutations(){
+        try(SessionImpl session = server.sessionWithNewKeyspace()) {
+            loadFromFileAndCommit(resourcePath, "appendingRPs.gql", session);
+            try (TransactionOLTP tx = session.transaction().read()) {
                 List<ConceptMap> derivedRPTriples = tx.execute(Graql.<GraqlGet>parse("match (inferredRole: $x, inferredRole: $y, inferredRole: $z) isa derivedRelation; get;"));
-                //NB: same answer is obtained from both rules
-                assertEquals("Rule body is not rewritten correctly!", 1, derivedRPTriples.size());
-
                 List<ConceptMap> derivedRelations = tx.execute(Graql.<GraqlGet>parse("match $r (inferredRole: $x, inferredRole: $y, inferredRole: $z) isa derivedRelation; get;"));
+
+                //NB: same answer is obtained from both rules
                 //three symmetric roles hence 3! results
+                assertEquals("Rule body is not rewritten correctly!", 6, derivedRPTriples.size());
                 assertEquals("Rule body is not rewritten correctly!", 6, derivedRelations.size());
+                assertEquals(1, derivedRelations.stream().map(ans -> ans.get("r")).collect(Collectors.toSet()).size());
             }
         }
     }
@@ -677,7 +697,7 @@ public class ReasoningIT {
     }
 
     @Test
-    public void ternaryRelationsRequiryingDifferentMultiunifiers(){
+    public void ternaryRelationsRequiringDifferentMultiunifiers(){
         try(SessionImpl session = server.sessionWithNewKeyspace()) {
             loadFromFileAndCommit(resourcePath, "testSet29.gql", session);
             try (TransactionOLTP tx = session.transaction().read()) {
@@ -711,6 +731,12 @@ public class ReasoningIT {
                 assertEquals(12, answers3.size());
 
                 List<ConceptMap> answers4 = tx.execute(Graql.parse(queryString4).asGet());
+                assertEquals(answers3.stream()
+                        .filter(ans -> ans.get("a").asThing()
+                                .attributes(tx.getAttributeType("name"))
+                                .anyMatch(at -> at.value().equals("b")))
+                        .count(),
+                        answers4.size());
                 assertEquals(4, answers4.size());
             }
         }

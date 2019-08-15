@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -71,7 +71,7 @@ public class StructuralCache<Q extends ReasonerQueryImpl>{
 
             ReasonerQueryImpl transformedQuery = equivalentQuery.transformIds(idTransform);
 
-            return tx.executor().traversal(transformedQuery.getPattern().variables(), traversal.transform(idTransform))
+            return tx.executor().traversal(transformedQuery.getPattern(), traversal.transform(idTransform))
                     .map(unifier::apply)
                     .map(a -> a.explain(new LookupExplanation(query.getPattern())));
         }
@@ -79,7 +79,7 @@ public class StructuralCache<Q extends ReasonerQueryImpl>{
         GraqlTraversal traversal = TraversalPlanner.createTraversal(query.getPattern(), tx);
         structCache.put(structQuery, new CacheEntry<>(query, traversal));
 
-        return tx.executor().traversal(query.getPattern().variables(), traversal)
+        return tx.executor().traversal(query.getPattern(), traversal)
                 .map(a -> a.explain(new LookupExplanation(query.getPattern())));
     }
 

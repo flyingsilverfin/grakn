@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -23,22 +23,30 @@ load("@graknlabs_bazel_distribution//common:rules.bzl", "assemble_targz", "java_
 load("@graknlabs_bazel_distribution//rpm:rules.bzl", "assemble_rpm", "deploy_rpm")
 load("@graknlabs_build_tools//checkstyle:rules.bzl", "checkstyle_test")
 
+genrule(
+    name = "version",
+    srcs = [
+        "templates/Version.java",
+        ":VERSION",
+    ],
+    cmd = "VERSION=`cat $(location :VERSION)`;sed -e \"s/{version}/$$VERSION/g\" $(location templates/Version.java) >> $@",
+    outs = ["Version.java"],
+    visibility = ["//visibility:public"]
+)
 
 java_library(
     name = "console",
-    srcs = glob(["**/*.java"]),
+    srcs = glob(["**/*.java"], exclude=["templates/**", "**/test/**"]) + [":version"],
     deps = [
-        # Grakn Core dependencies
-        "//common:common",
-        "//concept",
+        "//concept", # TODO: To be removed with issue #5288
         "@graknlabs_client_java//:client-java",
         "@graknlabs_graql//java:graql",
 
 
         # External dependencies
-        "//dependencies/maven/artifacts/com/google/guava:guava",
         "//dependencies/maven/artifacts/commons-cli",
-        "//dependencies/maven/artifacts/commons-lang:commons-lang", # PREVOIUSLY UNDECLARED
+        "//dependencies/maven/artifacts/commons-lang:commons-lang", # PREVIOUSLY UNDECLARED
+        "//dependencies/maven/artifacts/com/google/code/findbugs:jsr305",
         "//dependencies/maven/artifacts/io/grpc:grpc-core",
         "//dependencies/maven/artifacts/jline:jline",
         "//dependencies/maven/artifacts/org/slf4j:slf4j-api",
@@ -46,7 +54,7 @@ java_library(
     visibility = ["//visibility:public"],
     resources = ["LICENSE"],
     resource_strip_prefix = "console",
-    tags = ["maven_coordinates=io.grakn.core:console:{pom_version}"],
+    tags = ["maven_coordinates=io.grakn.core:grakn-console:{pom_version}"],
 )
 
 checkstyle_test(
@@ -54,6 +62,11 @@ checkstyle_test(
     targets = [
         ":console"
     ],
+)
+
+exports_files(
+    glob(["conf/logback.xml"]),
+    visibility = ["//visibility:public"]
 )
 
 java_binary(
@@ -75,18 +88,8 @@ assemble_targz(
     name = "assemble-linux-targz",
     output_filename = "grakn-core-console-linux",
     targets = [":console-deps", "//bin:assemble-bash-targz"],
-    empty_directories = [
-        "console/db/cassandra",
-        "console/db/queue"
-    ],
     additional_files = {
-        "//server:conf/logback.xml": "console/conf/logback.xml",
-        "//server:conf/grakn.properties": "console/conf/grakn.properties",
-    },
-    permissions = {
-      "console/services/cassandra/cassandra.yaml": "0777",
-      "console/db/cassandra": "0777",
-      "console/db/queue": "0777",
+        "//console:conf/logback.xml": "console/conf/logback.xml"
     },
     visibility = ["//visibility:public"]
 )
@@ -95,18 +98,8 @@ assemble_zip(
     name = "assemble-mac-zip",
     output_filename = "grakn-core-console-mac",
     targets = [":console-deps", "//bin:assemble-bash-targz"],
-    empty_directories = [
-        "console/db/cassandra",
-        "console/db/queue"
-    ],
     additional_files = {
-        "//server:conf/logback.xml": "console/conf/logback.xml",
-        "//server:conf/grakn.properties": "console/conf/grakn.properties",
-    },
-    permissions = {
-      "console/services/cassandra/cassandra.yaml": "0777",
-      "console/db/cassandra": "0777",
-      "console/db/queue": "0777",
+        "//console:conf/logback.xml": "console/conf/logback.xml"
     },
     visibility = ["//visibility:public"]
 )
@@ -114,23 +107,14 @@ assemble_zip(
 assemble_zip(
     name = "assemble-windows-zip",
     output_filename = "grakn-core-console-windows",
-    targets = [":console-deps", "//bin:assemble-bat-targz"],
-    empty_directories = [
-        "console/db/cassandra",
-        "console/db/queue"
-    ],
+    targets = [":console-deps", "//bin:assemble-bash-targz"],
     additional_files = {
-        "//server:conf/logback.xml": "console/conf/logback.xml",
-        "//server:conf/grakn.properties": "console/conf/grakn.properties",
-    },
-    permissions = {
-      "console/services/cassandra/cassandra.yaml": "0777",
-      "console/db/cassandra": "0777",
-      "console/db/queue": "0777",
+        "//console:conf/logback.xml": "console/conf/logback.xml"
     },
     visibility = ["//visibility:public"]
 )
 
+# TODO: To be removed with issue #5269
 assemble_maven(
     name = "assemble-maven",
     target = ":console",
@@ -139,6 +123,7 @@ assemble_maven(
     workspace_refs = "@graknlabs_grakn_core_workspace_refs//:refs.json"
 )
 
+# TODO: To be removed with issue #5269
 deploy_maven(
     name = "deploy-maven",
     target = ":assemble-maven"
@@ -155,8 +140,7 @@ assemble_apt(
       "grakn-core-bin (={version})"
     ],
     files = {
-        "//server:conf/logback.xml": "console/conf/logback.xml",
-        "//server:conf/grakn.properties": "console/conf/grakn.properties",
+        "//console:conf/logback.xml": "console/conf/logback.xml"
     },
     archives = [":console-deps"],
     installation_dir = "/opt/grakn/core/",
@@ -179,8 +163,7 @@ assemble_rpm(
     spec_file = "//config/rpm:grakn-core-console.spec",
     archives = [":console-deps"],
     files = {
-        "//server:conf/logback.xml": "console/conf/logback.xml",
-        "//server:conf/grakn.properties": "console/conf/grakn.properties",
+        "//console:conf/logback.xml": "console/conf/logback.xml"
     },
     empty_dirs = [
          "opt/grakn/core/console/services/lib/",
@@ -191,9 +174,4 @@ deploy_rpm(
     name = "deploy-rpm",
     target = ":assemble-linux-rpm",
     deployment_properties = "@graknlabs_build_tools//:deployment.properties",
-)
-
-test_suite(
-    name = "console-test-integration",
-    tests = []
 )

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -24,6 +24,7 @@ import com.google.common.collect.UnmodifiableIterator;
 import grakn.core.concept.Concept;
 import grakn.core.concept.Label;
 import grakn.core.concept.type.Type;
+import grakn.core.graql.gremlin.NodesUtil;
 import grakn.core.graql.reasoner.atom.Atom;
 import grakn.core.graql.reasoner.atom.predicate.IdPredicate;
 import grakn.core.graql.reasoner.plan.ResolutionPlan;
@@ -35,6 +36,14 @@ import graql.lang.Graql;
 import graql.lang.pattern.Conjunction;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -46,18 +55,7 @@ import org.junit.Test;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import static grakn.core.util.GraqlTestUtil.loadFromFileAndCommit;
 import static graql.lang.Graql.var;
 import static java.lang.annotation.ElementType.METHOD;
 import static java.util.stream.Collectors.toSet;
@@ -65,6 +63,7 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -79,37 +78,24 @@ public class ResolutionPlanIT {
     @ClassRule
     public static final GraknTestServer server = new GraknTestServer();
 
-    private static SessionImpl genericSchemaSession;
-
-    private static void loadFromFile(String fileName, SessionImpl session){
-        try {
-            InputStream inputStream = ResolutionPlanIT.class.getClassLoader().getResourceAsStream("test-integration/graql/reasoner/resources/"+fileName);
-            String s = new BufferedReader(new InputStreamReader(inputStream)).lines().collect(Collectors.joining("\n"));
-            TransactionOLTP tx = session.transaction().write();
-            Graql.parseList(s).forEach(tx::execute);
-            tx.commit();
-        } catch (Exception e){
-            System.err.println(e);
-            throw new RuntimeException(e);
-        }
-    }
-
+    private static SessionImpl planSession;
     private TransactionOLTP tx;
 
     @BeforeClass
     public static void loadContext(){
-        genericSchemaSession = server.sessionWithNewKeyspace();
-        loadFromFile("resolutionPlanTest.gql", genericSchemaSession);
+        planSession = server.sessionWithNewKeyspace();
+        String resourcePath = "test-integration/graql/reasoner/resources/";
+        loadFromFileAndCommit(resourcePath, "resolutionPlanTest.gql", planSession);
     }
 
     @AfterClass
     public static void closeSession(){
-        genericSchemaSession.close();
+        planSession.close();
     }
 
     @Before
     public void setUp(){
-        tx = genericSchemaSession.transaction().write();
+        tx = planSession.transaction().write();
     }
 
     @After
@@ -119,7 +105,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureDisconnectedIndexedQueriesProduceCompletePlan_indexedResource() {
+    public void whenDisconnectedIndexedQueriesPresentWithIndexedResource_completePlanIsProduced() {
         String queryString = "{" +
                 "$x isa someEntity;" +
                 "$y isa resource;$y 'value';" +
@@ -131,7 +117,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureDisconnectedIndexedQueriesProduceCompletePlan_indexedEntity() {
+    public void whenDisconnectedIndexedQueriesPresentWithIndexedEntity_completePlanIsProduced() {
         String queryString = "{" +
                 "$x isa someEntity;$x id V123;" +
                 "$y isa resource;" +
@@ -143,7 +129,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void prioritiseSubbedRelationsOverNonSubbedOnes() {
+    public void whenSubstituionPresent_prioritiseSubbedRelationsOverNonSubbedOnes() {
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
                 "(someRole:$y, otherRole: $z) isa anotherRelation;" +
@@ -162,7 +148,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void prioritiseSubbedResolvableRelationsOverNonSubbedNonResolvableOnes() {
+    public void whenSubstitutionPresent_prioritiseSubbedResolvableRelationsOverNonSubbedNonResolvableOnes() {
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
                 "(someRole:$y, otherRole: $z) isa derivedRelation;" +
@@ -179,7 +165,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void prioritiseMostSubbedRelations() {
+    public void whenMultipleSubsPresent_prioritiseMostSubbedRelations() {
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
                 "(someRole:$y, otherRole: $z) isa anotherRelation;" +
@@ -197,32 +183,30 @@ public class ResolutionPlanIT {
         checkPlanSanity(query);
     }
 
-    //TODO refined plan should solve this
-    @Ignore
+    @Ignore ("atm it is a degenerate case - we need to incorporate statistics into MST calculation")
     @Test
     @Repeat( times = repeat )
-    public void prioritiseNonResolvableRelations_OnlyAtomicQueriesPresent() {
+    public void whenOnlyAtomicQueriesPresent_prioritiseNonResolvableRelations_() {
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
-                "(someRole:$y, otherRole: $z) isa derivedRelation;" +
+                "(someRole:$y, otherRole: $z) isa anotherDerivedRelation;" +
                 "};";
         ReasonerQueryImpl query = ReasonerQueries.create(conjunction(queryString), tx);
         ImmutableList<Atom> correctPlan = ImmutableList.of(
                 getAtomOfType(query, "someRelation", tx),
-                getAtomOfType(query, "derivedRelation", tx)
+                getAtomOfType(query, "anotherDerivedRelation", tx)
         );
         checkOptimalAtomPlanProduced(query, correctPlan);
         checkPlanSanity(query);
     }
 
-    //TODO refined plan should solve this
-    @Ignore
+    @Ignore ("atm it is a degenerate case - we need to incorporate statistics into MST calculation")
     @Test
     @Repeat( times = repeat )
-    public void prioritiseNonResolvableRelations_SandwichedResolvableRelation() {
+    public void whenSandwichedResolvableRelation_prioritiseNonResolvableRelations_() {
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
-                "(someRole:$y, otherRole: $z) isa derivedRelation;" +
+                "(someRole:$y, otherRole: $z) isa anotherDerivedRelation;" +
                 "(someRole:$z, otherRole: $w) isa yetAnotherRelation;" +
                 "};";
         ReasonerQueryImpl query = ReasonerQueries.create(conjunction(queryString), tx);
@@ -232,7 +216,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void prioritiseSpecificResourcesOverRelations(){
+    public void whenSpecificResourcePresent_prioritiseSpecificResources(){
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
                 "(someRole:$y, otherRole: $z) isa anotherRelation;" +
@@ -252,7 +236,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void prioritiseSpecificResourcesOverResolvableRelationsWithGuards(){
+    public void whenSpecificResourcesAndRelationsWithGuardsPresent_prioritiseSpecificResources(){
         String queryString = "{" +
                 "$x isa baseEntity;" +
                 "(someRole:$x, otherRole: $y) isa derivedRelation;" +
@@ -270,7 +254,8 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void prioritiseSpecificResourcesOverNonSpecific(){
+    public void whenSpecificAndNonspecificResourcesPresent_prioritiseSpecificResources(){
+
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
                 "(someRole:$y, otherRole: $z) isa anotherRelation;" +
@@ -292,7 +277,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void doNotPrioritiseNonSpecificResources(){
+    public void whenNonSpecificResourcesPresent_doNotPrioritiseThem(){
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa derivedRelation;" +
                 "$x has resource $xr;" +
@@ -309,13 +294,13 @@ public class ResolutionPlanIT {
      * [$start/...] ($start, $link) - ($link, $anotherlink) - ($anotherlink, $end)* [$anotherlink/...]
      *
      */
-    //TODO refined plan should solve this
-    @Ignore
+    @Ignore ("should be fixed once we provide an estimate for inferred concepts count")
     @Test
-    public void exploitDBRelationsAndConnectivity_relationLinkWithSubbedEndsAndRuleRelationInTheMiddle(){
+    @Repeat( times = repeat )
+    public void whenRelationLinkWithSubbedEndsAndRuleRelationInTheMiddle_exploitDBRelationsAndConnectivity(){
         String queryString = "{" +
-                "$start id someSampleId;" +
-                "$end id anotherSampleId;" +
+                "$start id V123;" +
+                "$end id V456;" +
                 "(someRole: $link, otherRole: $start) isa someRelation;" +
                 "(someRole: $link, otherRole: $anotherlink) isa derivedRelation;" +
                 "(someRole: $anotherlink, otherRole: $end) isa anotherRelation;" +
@@ -328,8 +313,6 @@ public class ResolutionPlanIT {
 
         checkQueryPlanSanity(query);
         assertTrue(resolutionQueryPlan.queries().get(0).getAtoms(IdPredicate.class).findFirst().isPresent());
-        assertEquals(2, resolutionQueryPlan.queries().size());
-        //TODO still might produce disconnected plans
         checkAtomPlanSanity(query);
     }
 
@@ -339,10 +322,9 @@ public class ResolutionPlanIT {
      * [$start/...] ($start, $link) - ($link, $anotherlink) - ($anotherlink, $end)* [$anotherlink/...]
      *
      */
-    //TODO refined plan should solve this
-    //@Ignore
     @Test
-    public void exploitDBRelationsAndConnectivity_relationLinkWithSubbedEndsAndRuleRelationAtEnd(){
+    @Repeat( times = repeat )
+    public void whenRelationLinkWithSubbedEndsAndRuleRelationAtEnd_exploitDBRelationsAndConnectivity(){
         String queryString = "{" +
                 "$start id Vsomesampleid;" +
                 "$end id Vanothersampleid;" +
@@ -360,7 +342,6 @@ public class ResolutionPlanIT {
         assertTrue(resolutionQueryPlan.queries().get(0).getAtoms(IdPredicate.class).findFirst().isPresent());
         assertTrue(!resolutionQueryPlan.queries().get(0).isAtomic());
         assertEquals(2, resolutionQueryPlan.queries().size());
-        //TODO still might produce disconnected plans
         checkAtomPlanSanity(query);
     }
 
@@ -372,12 +353,11 @@ public class ResolutionPlanIT {
      *        resource $res                                                  resource $res
      *    anotherResource 'someValue'
      */
-    //TODO flaky!
-    @Ignore
     @Test
-    public void exploitDBRelationsAndConnectivity_relationLinkWithEndsSharingAResource(){
+    @Repeat( times = repeat )
+    public void whenRelationLinkWithEndsSharingAResource_exploitDBRelationsAndConnectivity(){
         String queryString = "{" +
-                "$start id sampleId;" +
+                "$start id V123;" +
                 "$start isa someEntity;" +
                 "$start has anotherResource 'someValue';" +
                 "$start has resource $res;" +
@@ -391,14 +371,20 @@ public class ResolutionPlanIT {
 
         checkQueryPlanSanity(query);
         assertTrue(resolutionQueryPlan.queries().get(0).getAtoms(IdPredicate.class).findFirst().isPresent());
-        assertTrue(!resolutionQueryPlan.queries().get(0).isAtomic());
+        System.out.println(resolutionQueryPlan);
+
+        List<ReasonerQueryImpl> queries = resolutionQueryPlan.queries();
+        //check that last two queries are the rule resolvable ones
+        assertTrue(queries.get(queries.size()-1).isRuleResolvable());
+        assertTrue(queries.get(queries.size()-2).isRuleResolvable());
+
         //TODO still might produce disconnected plans
         //checkAtomPlanSanity(query);
     }
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureIndirectTypeAtomsAreNotLostWhenPlanning(){
+    public void whenIndirectTypeAtomsPresent_makeSureTheyAreNotLost(){
         String queryString = "{" +
                 "$x isa baseEntity;" +
                 "$y isa baseEntity;" +
@@ -413,7 +399,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureOptimalOrderPickedWhenResourcesWithSubstitutionsArePresent() {
+    public void whenResourcesWithSubstitutionsArePresent_makeSureOptimalOrderPicked() {
         Concept concept = tx.stream(Graql.match(var("x").isa("baseEntity")).get("x"))
                 .map(ans -> ans.get("x")).findAny().orElse(null);
         String basePatternString =
@@ -435,13 +421,15 @@ public class ResolutionPlanIT {
         checkPlanSanity(queryX);
         checkPlanSanity(queryY);
 
-        assertNotEquals(new ResolutionPlan(queryX).plan().get(0), getAtomOfType(queryX, "anotherResource", tx));
-        assertNotEquals(new ResolutionPlan(queryY).plan().get(0), getAtomOfType(queryX, "resource", tx));
+        ImmutableList<Atom> xPlan = new ResolutionPlan(queryX).plan();
+        ImmutableList<Atom> yPlan = new ResolutionPlan(queryY).plan();
+        assertNotEquals(xPlan.get(0), getAtomOfType(queryX, "anotherResource", tx));
+        assertNotEquals(yPlan.get(0), getAtomOfType(queryY, "resource", tx));
     }
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureConnectednessPreservedWhenRelationsWithSameTypesPresent(){
+    public void whenRelationsWithSameTypesPresent_makeSureConnectednessPreserved(){
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
                 "(someRole:$y, otherRole: $z) isa anotherRelation;" +
@@ -455,7 +443,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureConnectednessPreservedWhenRelationsWithSameTypesPresent_longerChain(){
+    public void whenRelationsWithSameTypesPresent_makeSureConnectednessPreserved_longerChain(){
         String queryString = "{" +
                 "(someRole:$x, otherRole: $y) isa someRelation;" +
                 "(someRole:$y, otherRole: $z) isa anotherRelation;" +
@@ -475,8 +463,9 @@ public class ResolutionPlanIT {
      \   (d, g) - (g, h)*
      */
     @Test
+    @Ignore ("flaky - need to reintroduce inferred concept counts")
     @Repeat( times = repeat )
-    public void makeSureBranchedQueryChainsWithResolvableRelationsDoNotProduceDisconnectedPlans(){
+    public void whenBranchedQueryChainsWithResolvableRelations_disconnectedPlansAreNotProduced(){
 
         String basePatternString =
                 "($a, $b) isa derivedRelation;" +
@@ -516,7 +505,7 @@ public class ResolutionPlanIT {
      */
     @Test
     @Repeat( times = repeat )
-    public void makeSureBranchedQueryChainsWithResolvableRelationsDoNotProduceDisconnectedPlans_anotherVariant(){
+    public void whenBranchedQueryChainsWithResolvableRelations_disconnectedPlansAreNotProduced_anotherVariant(){
         String basePatternString =
                 "($a, $b) isa someRelation;" +
                         "($b, $g) isa anotherRelation;" +
@@ -548,7 +537,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureDisconnectedQueryProducesValidPlan(){
+    public void whenQueryIsDisconnected_validPlanIsProduced(){
         String queryString = "{" +
                 "$a isa baseEntity;" +
                 "($a, $b) isa derivedRelation; $b isa someEntity;" +
@@ -565,7 +554,7 @@ public class ResolutionPlanIT {
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureNonTrivialDisconnectedQueryProducesValidPlan(){
+    public void whenQueryIsNonTriviallyDisconnected_validPlanIsProduced(){
         String queryString = "{" +
                 "$a isa baseEntity;" +
                 "($a, $b) isa derivedRelation; $b isa someEntity;" +
@@ -588,7 +577,7 @@ public class ResolutionPlanIT {
      */
     @Test
     @Repeat( times = repeat )
-    public void makeSureDisconnectedConjunctionWithSpecificConceptsResolvedFirst(){
+    public void whenDisconnectedConjunctionWithSpecificConceptsPresent_itIsResolvedFirst(){
         String queryString = "{" +
                 "$x isa someEntity;" +
                 "$x has resource 'someValue';" +
@@ -609,7 +598,7 @@ public class ResolutionPlanIT {
      */
     @Test
     @Repeat( times = repeat )
-    public void makeSureDisconnectedConjunctionWithOntologicalAtomResolvedFirst() {
+    public void whenDisconnectedConjunctionWithOntologicalAtomPresent_itIsResolvedLast() {
         String queryString = "{" +
                 "$x isa $type;" +
                 "$type has resource;" +
@@ -622,14 +611,40 @@ public class ResolutionPlanIT {
         checkAtomPlanComplete(query, resolutionPlan);
 
         Atom resolvableIsa = getAtomWithVariables(query, Sets.newHashSet(new Variable("x"), new Variable("type")));
-        assertThat(resolutionPlan.plan().get(3), is(resolvableIsa));
+        assertThat(resolutionPlan.plan().get(2), is(resolvableIsa));
 
         checkQueryPlanComplete(query, new ResolutionQueryPlan(query));
     }
 
     @Test
     @Repeat( times = repeat )
-    public void makeSureAttributeResolvedBeforeConjunction(){
+    public void whenPlanningForAFullyLinkedReifiedRelation_optimalStartingPointIsPicked() {
+        Concept concept = tx.stream(Graql.match(var("x").isa("baseEntity")).get("x"))
+                .map(ans -> ans.get("x")).findAny().orElse(null);
+        String queryString = "{" +
+                "$x id " + concept.id() + ";" +
+                "($x, $link) isa someRelation;" +
+                "($link, $y) isa anotherRelation;" +
+
+                "$rel ($link, $z) isa derivedRelation;" +
+                "$rel has resource 'value';" +
+                "$rel has anotherResource $value;" +
+
+                "};";
+
+        ReasonerQueryImpl query = ReasonerQueries.create(conjunction(queryString), tx);
+        ResolutionPlan resolutionPlan = new ResolutionPlan(query);
+        checkPlanSanity(query);
+        checkQueryPlanComplete(query, new ResolutionQueryPlan(query));
+
+        Atom specificResource = getAtomOfType(query, "resource", tx);
+        Atom someRelation = getAtomOfType(query, "someRelation", tx);
+        assertThat(resolutionPlan.plan().get(0), Matchers.isOneOf(specificResource, someRelation));
+    }
+
+    @Test
+    @Repeat( times = repeat )
+    public void whenConjunctionChainWithASpecificAttribute_attributeResolvedBeforeConjunction(){
         String queryString = "{" +
                 "$f has resource 'value'; $f isa someEntity;" +
                 "($e, $f) isa derivedRelation; $e isa someOtherEntity;" +
@@ -640,7 +655,33 @@ public class ResolutionPlanIT {
                 "};";
         ReasonerQueryImpl query = ReasonerQueries.create(conjunction(queryString), tx);
         checkPlanSanity(query);
-        //todo
+    }
+
+    @Test
+    public void whenEstimatingInferredCountOfAnInferredRelation_countIsDerivedFromMinimumPremiseCount(){
+        Label someRelationLabel = Label.of("someRelation");
+        Label anotherRelationLabel = Label.of("anotherRelation");
+        Label derivedRelationLabel = Label.of("derivedRelation");
+        Label anotherDerivedRelationLabel = Label.of("anotherDerivedRelation");
+        assertEquals(
+                tx.session().keyspaceStatistics().count(tx, someRelationLabel),
+                NodesUtil.estimateInferredTypeCount(derivedRelationLabel, tx)
+        );
+
+        assertEquals(
+                tx.session().keyspaceStatistics().count(tx, anotherRelationLabel),
+                NodesUtil.estimateInferredTypeCount(anotherDerivedRelationLabel, tx)
+        );
+    }
+
+    @Test
+    public void whenEstimatingInferredCountOfAnInferredRecursiveRelation_countIsDerivedFromLeafType(){
+        Label someRelationLabel = Label.of("someRelation");
+        Label someRelationTransLabel = Label.of("someRelationTrans");
+        assertEquals(
+                tx.session().keyspaceStatistics().count(tx, someRelationLabel),
+                NodesUtil.estimateInferredTypeCount(someRelationTransLabel, tx)
+        );
     }
 
     private Atom getAtomWithVariables(ReasonerQuery query, Set<Variable> vars){
@@ -685,7 +726,7 @@ public class ResolutionPlanIT {
         while(iterator.hasNext()){
             Atom next = iterator.next();
             Set<Variable> varNames = next.getVarNames();
-            assertTrue("Disconnected plan produced:\n" + plan, !Sets.intersection(varNames, vars).isEmpty());
+            assertFalse("Disconnected plan produced:\n" + plan, Sets.intersection(varNames, vars).isEmpty());
             vars.addAll(varNames);
         }
     }
@@ -699,7 +740,7 @@ public class ResolutionPlanIT {
             ReasonerQueryImpl next = iterator.next();
             Set<Variable> varNames = next.getVarNames();
             boolean isDisconnected = Sets.intersection(varNames, vars).isEmpty();
-            assertTrue("Disconnected query plan produced:\n" + plan, !isDisconnected);
+            assertFalse("Disconnected query plan produced:\n" + plan, isDisconnected);
             vars.addAll(varNames);
         }
     }

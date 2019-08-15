@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,7 +18,6 @@
 
 package grakn.core.graql.executor;
 
-import grakn.core.common.util.CommonUtil;
 import grakn.core.concept.Concept;
 import grakn.core.concept.ConceptId;
 import grakn.core.concept.Label;
@@ -29,14 +28,12 @@ import grakn.core.concept.type.Role;
 import grakn.core.concept.type.Rule;
 import grakn.core.concept.type.SchemaConcept;
 import grakn.core.concept.type.Type;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
+import grakn.core.server.exception.GraknServerException;
 import grakn.core.server.exception.InvalidKBException;
 import grakn.core.server.kb.Schema;
 import graql.lang.Graql;
 import graql.lang.pattern.Pattern;
-import graql.lang.property.IsaProperty;
-import graql.lang.property.ValueProperty;
-import graql.lang.property.VarProperty;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
 
@@ -51,13 +48,13 @@ import java.util.function.Function;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Class for building a {@link Concept}, by providing properties.
- * A {@link VarProperty} is responsible for inserting itself into the graph. However,
- * some properties can only operate in combination. For example, to create a {@link Attribute} you need both
- * an {@link IsaProperty} and a {@link ValueProperty}.
- * Therefore, these properties do not create the {@link Concept} themselves.
- * instead they provide the necessary information to the {@link ConceptBuilder}, which will create the
- * {@link Concept} at a later time:
+ * Class for building a Concept, by providing properties.
+ * A VarProperty is responsible for inserting itself into the graph. However,
+ * some properties can only operate in combination. For example, to create a Attribute you need both
+ * an IsaProperty and a ValueProperty.
+ * Therefore, these properties do not create the Concept themselves.
+ * instead they provide the necessary information to the ConceptBuilder, which will create the
+ * Concept at a later time:
  * <pre>
  *     // Executor:
  *     ConceptBuilder builder = ConceptBuilder.of(executor, var);
@@ -153,9 +150,9 @@ public class ConceptBuilder {
     }
 
     /**
-     * Build the {@link Concept} and return it, using the properties given.
+     * Build the Concept and return it, using the properties given.
      *
-     * @throws GraqlQueryException if the properties provided are inconsistent
+     * @throws GraqlSemanticException if the properties provided are inconsistent
      */
     Concept build() {
 
@@ -230,13 +227,13 @@ public class ConceptBuilder {
         } else if (has(TYPE)) {
             concept = putInstance();
         } else {
-            throw GraqlQueryException.insertUndefinedVariable(executor.printableRepresentation(var));
+            throw GraqlSemanticException.insertUndefinedVariable(executor.printableRepresentation(var));
         }
 
         // Check for any unexpected parameters
         preProvidedParams.forEach((param, value) -> {
             if (!usedParams.contains(param)) {
-                throw GraqlQueryException.insertUnexpectedProperty(param.name(), value, concept);
+                throw GraqlSemanticException.insertUnexpectedProperty(param.name(), value, concept);
             }
         });
 
@@ -244,8 +241,8 @@ public class ConceptBuilder {
     }
 
     /**
-     * Describes a parameter that can be set on a {@link ConceptBuilder}.
-     * We could instead just represent these parameters as fields of {@link ConceptBuilder}. Instead, we use a
+     * Describes a parameter that can be set on a ConceptBuilder.
+     * We could instead just represent these parameters as fields of ConceptBuilder. Instead, we use a
      * {@code Map<BuilderParam<?>, Object>}. This allows us to do clever stuff like iterate over the parameters,
      * or check for unexpected parameters without lots of boilerplate.
      */
@@ -289,7 +286,7 @@ public class ConceptBuilder {
 
     /**
      * Class with no fields and exactly one instance.
-     * Similar in use to {@link Void}, but the single instance is {@link Unit#INSTANCE} instead of {@code null}. Useful
+     * Similar in use to Void, but the single instance is {@link Unit#INSTANCE} instead of {@code null}. Useful
      * when {@code null} is not allowed.
      * @see <a href=https://en.wikipedia.org/wiki/Unit_type>Wikipedia</a>
      */
@@ -321,18 +318,18 @@ public class ConceptBuilder {
 
         if (value == null) {
             Statement owner = executor.printableRepresentation(var);
-            throw GraqlQueryException.insertNoExpectedProperty(param.name(), owner);
+            throw GraqlSemanticException.insertNoExpectedProperty(param.name(), owner);
         }
 
         return value;
     }
 
     /**
-     * Called during {@link #build()} whenever a particular parameter is expected in order to build the {@link Concept}.
+     * Called during {@link #build()} whenever a particular parameter is expected in order to build the Concept.
      * This method will return the parameter, if present and also record that it was expected, so that we can later
      * check for any unexpected properties.
      *
-     * @throws GraqlQueryException if the parameter is not present
+     * @throws GraqlSemanticException if the parameter is not present
      */
     private <T> T use(BuilderParam<T> param) {
         return useOrDefault(param, null);
@@ -346,7 +343,7 @@ public class ConceptBuilder {
         if (preProvidedParams.containsKey(param) && !preProvidedParams.get(param).equals(value)) {
             Statement varPattern = executor.printableRepresentation(var);
             Object otherValue = preProvidedParams.get(param);
-            throw GraqlQueryException.insertMultipleProperties(varPattern, param.name(), value, otherValue);
+            throw GraqlSemanticException.insertMultipleProperties(varPattern, param.name(), value, otherValue);
         }
         preProvidedParams.put(param, checkNotNull(value));
         return this;
@@ -355,7 +352,7 @@ public class ConceptBuilder {
     /**
      * Check if this pre-existing concept conforms to all specified parameters
      *
-     * @throws GraqlQueryException if any parameter does not match
+     * @throws GraqlSemanticException if any parameter does not match
      */
     private void validate(Concept concept) {
         validateParam(concept, TYPE, Thing.class, Thing::type);
@@ -371,7 +368,7 @@ public class ConceptBuilder {
     /**
      * Check if the concept is of the given type and has a property that matches the given parameter.
      *
-     * @throws GraqlQueryException if the concept does not satisfy the parameter
+     * @throws GraqlSemanticException if the concept does not satisfy the parameter
      */
     private <S extends Concept, T> void validateParam(
             Concept concept, BuilderParam<T> param, Class<S> conceptType, Function<S, T> getter) {
@@ -382,7 +379,7 @@ public class ConceptBuilder {
             boolean isInstance = conceptType.isInstance(concept);
 
             if (!isInstance || !Objects.equals(getter.apply(conceptType.cast(concept)), value)) {
-                throw GraqlQueryException.insertPropertyOnExistingConcept(param.name(), value, concept);
+                throw GraqlSemanticException.insertPropertyOnExistingConcept(param.name(), value, concept);
             }
         }
     }
@@ -397,9 +394,9 @@ public class ConceptBuilder {
         } else if (type.isAttributeType()) {
             return type.asAttributeType().create(use(VALUE));
         } else if (type.label().equals(Schema.MetaSchema.THING.getLabel())) {
-            throw GraqlQueryException.createInstanceOfMetaConcept(var, type);
+            throw GraqlSemanticException.createInstanceOfMetaConcept(var, type);
         } else {
-            throw CommonUtil.unreachableStatement("Can't recognize type " + type);
+            throw GraknServerException.unreachableStatement("Can't recognize type " + type);
         }
     }
 
@@ -433,7 +430,7 @@ public class ConceptBuilder {
     /**
      * Make the second argument the super of the first argument
      *
-     * @throws GraqlQueryException if the types are different, or setting the super to be a meta-type
+     * @throws GraqlSemanticException if the types are different, or setting the super to be a meta-type
      */
     public static void setSuper(SchemaConcept subConcept, SchemaConcept superConcept) {
         if (superConcept.isEntityType()) {

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -32,17 +32,13 @@ import graql.lang.Graql;
 import graql.lang.pattern.Conjunction;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
+import java.util.Set;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import static grakn.core.util.GraqlTestUtil.loadFromFileAndCommit;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -57,27 +53,15 @@ public class RoleInferenceIT {
     private static SessionImpl genericSchemaSession;
     private static SessionImpl ruleApplicabilitySetSession;
 
-    private static void loadFromFile(String fileName, SessionImpl session){
-        try {
-            InputStream inputStream = RoleInferenceIT.class.getClassLoader().getResourceAsStream("test-integration/graql/reasoner/resources/"+fileName);
-            String s = new BufferedReader(new InputStreamReader(inputStream)).lines().collect(Collectors.joining("\n"));
-            TransactionOLTP tx = session.transaction().write();
-            Graql.parseList(s).forEach(tx::execute);
-            tx.commit();
-        } catch (Exception e){
-            System.err.println(e);
-            throw new RuntimeException(e);
-        }
-    }
-
     @BeforeClass
     public static void loadContext(){
+        final String resourcePath = "test-integration/graql/reasoner/resources/";
         roleInferenceSetSession = server.sessionWithNewKeyspace();
-        loadFromFile("roleInferenceTest.gql", roleInferenceSetSession);
+        loadFromFileAndCommit(resourcePath, "roleInferenceTest.gql", roleInferenceSetSession);
         genericSchemaSession = server.sessionWithNewKeyspace();
-        loadFromFile("genericSchema.gql", genericSchemaSession);
+        loadFromFileAndCommit(resourcePath, "genericSchema.gql", genericSchemaSession);
         ruleApplicabilitySetSession = server.sessionWithNewKeyspace();
-        loadFromFile("ruleApplicabilityTest.gql", ruleApplicabilitySetSession);
+        loadFromFileAndCommit(resourcePath,"ruleApplicabilityTest.gql", ruleApplicabilitySetSession);
     }
 
     @AfterClass

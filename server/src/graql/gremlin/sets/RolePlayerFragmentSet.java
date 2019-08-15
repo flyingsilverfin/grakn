@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -38,7 +38,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static grakn.core.common.util.CommonUtil.toImmutableSet;
 import static java.util.stream.Collectors.toSet;
 
 /**
@@ -76,19 +75,19 @@ abstract class RolePlayerFragmentSet extends EquivalentFragmentSet {
     /**
      * A query can use the role-type labels on a {@link Schema.EdgeLabel#ROLE_PLAYER} edge when the following criteria are met:
      * <ol>
-     *     <li>There is a {@link RolePlayerFragmentSet} {@code $r-[role-player:$e role:$R ...]->$p}
-     *     <li>There is a {@link LabelFragmentSet} {@code $R[label:foo,bar]}
+     *     <li>There is a RolePlayerFragmentSet {@code $r-[role-player:$e role:$R ...]->$p}
+     *     <li>There is a LabelFragmentSet {@code $R[label:foo,bar]}
      * </ol>
      *
-     * When these criteria are met, the {@link RolePlayerFragmentSet} can be filtered to the indirect sub-types of
-     * {@code foo} and {@code bar} and will no longer need to navigate to the {@link Role} directly:
+     * When these criteria are met, the RolePlayerFragmentSet can be filtered to the indirect sub-types of
+     * {@code foo} and {@code bar} and will no longer need to navigate to the Role directly:
      * <p>
      * {@code $r-[role-player:$e roles:foo,bar ...]->$p}
      * <p>
-     * In the special case where the role is specified as the meta {@code role}, no labels are added and the {@link Role}
+     * In the special case where the role is specified as the meta {@code role}, no labels are added and the Role
      * variable is detached from the {@link Schema.EdgeLabel#ROLE_PLAYER} edge.
      * <p>
-     * However, we must still retain the {@link LabelFragmentSet} because it is possible it is selected as a result or
+     * However, we must still retain the LabelFragmentSet because it is possible it is selected as a result or
      * referred to elsewhere in the query.
      */
     static final FragmentSetOptimisation ROLE_OPTIMISATION = (fragmentSets, tx) -> {
@@ -175,26 +174,26 @@ abstract class RolePlayerFragmentSet extends EquivalentFragmentSet {
     };
 
     /**
-     * A query can use the {@link RelationType} {@link Label}s on a {@link Schema.EdgeLabel#ROLE_PLAYER} edge when the following criteria are met:
+     * A query can use the RelationType Labels on a {@link Schema.EdgeLabel#ROLE_PLAYER} edge when the following criteria are met:
      * <ol>
-     *     <li>There is a {@link RolePlayerFragmentSet} {@code $r-[role-player:$e ...]->$p}
-     *         without any {@link RelationType} {@link Label}s specified
-     *     <li>There is a {@link IsaFragmentSet} {@code $r-[isa]->$R}
-     *     <li>There is a {@link LabelFragmentSet} {@code $R[label:foo,bar]}
+     *     <li>There is a RolePlayerFragmentSet {@code $r-[role-player:$e ...]->$p}
+     *         without any RelationType Labels specified
+     *     <li>There is a IsaFragmentSet {@code $r-[isa]->$R}
+     *     <li>There is a LabelFragmentSet {@code $R[label:foo,bar]}
      * </ol>
      *
-     * When these criteria are met, the {@link RolePlayerFragmentSet} can be filtered to the types
+     * When these criteria are met, the RolePlayerFragmentSet can be filtered to the types
      * {@code foo} and {@code bar}.
      * <p>
      * {@code $r-[role-player:$e rels:foo]->$p}
      * <p>
      *
-     * However, we must still retain the {@link LabelFragmentSet} because it is possible it is selected as a result or
+     * However, we must still retain the LabelFragmentSet because it is possible it is selected as a result or
      * referred to elsewhere in the query.
      * <p>
-     * We also keep the {@link IsaFragmentSet}, although the results will still be correct without it. This is because
-     * it can help with performance: there are some instances where it makes sense to navigate from the {@link RelationType}
-     * {@code foo} to all instances. In order to do that, the {@link IsaFragmentSet} must be present.
+     * We also keep the IsaFragmentSet, although the results will still be correct without it. This is because
+     * it can help with performance: there are some instances where it makes sense to navigate from the RelationType
+     * {@code foo} to all instances. In order to do that, the IsaFragmentSet must be present.
      */
     static final FragmentSetOptimisation RELATION_TYPE_OPTIMISATION = (fragmentSets, graph) -> {
         Iterable<RolePlayerFragmentSet> rolePlayers =
@@ -228,10 +227,10 @@ abstract class RolePlayerFragmentSet extends EquivalentFragmentSet {
 
     private RolePlayerFragmentSet substituteLabels(Set<Role> roles, Set<RelationType> relTypes){
         ImmutableSet<Label> newRoleTypeLabels = relTypes != null?
-                relTypes.stream().flatMap(RelationType::subs).map(SchemaConcept::label).collect(toImmutableSet()) :
+                relTypes.stream().flatMap(RelationType::subs).map(SchemaConcept::label).collect(ImmutableSet.toImmutableSet()) :
                 null;
         ImmutableSet<Label> newRoleLabels = roles != null?
-                roles.stream().flatMap(Role::subs).map(SchemaConcept::label).collect(toImmutableSet()) :
+                roles.stream().flatMap(Role::subs).map(SchemaConcept::label).collect(ImmutableSet.toImmutableSet()) :
                 null;
 
         return new AutoValue_RolePlayerFragmentSet(
@@ -243,16 +242,16 @@ abstract class RolePlayerFragmentSet extends EquivalentFragmentSet {
 
     /**
      * NB: doesn't allow overwrites
-     * Apply an optimisation where we check the {@link Role} property instead of navigating to the {@link Role} directly.
+     * Apply an optimisation where we check the Role property instead of navigating to the Role directly.
      * @param roles the role-player must link to any of these (or their sub-types)
-     * @return a new {@link RolePlayerFragmentSet} with the same properties excepting role-types
+     * @return a new RolePlayerFragmentSet with the same properties excepting role-types
      */
     private RolePlayerFragmentSet substituteRoleLabel(Stream<Role> roles) {
         Preconditions.checkNotNull(this.role());
         Preconditions.checkState(roleLabels() == null);
 
         ImmutableSet<Label> newRoleLabels =
-                roles.flatMap(Role::subs).map(SchemaConcept::label).collect(toImmutableSet());
+                roles.flatMap(Role::subs).map(SchemaConcept::label).collect(ImmutableSet.toImmutableSet());
 
         return new AutoValue_RolePlayerFragmentSet(
                 varProperty(), relation(), edge(), rolePlayer(), null, newRoleLabels, relationTypeLabels()
@@ -261,9 +260,9 @@ abstract class RolePlayerFragmentSet extends EquivalentFragmentSet {
 
     /**
      * NB: doesn't allow overwrites
-     * Apply an optimisation where we check the {@link RelationType} property.
+     * Apply an optimisation where we check the RelationType property.
      * @param relTypeLabels the role-player fragment must link to any of these (not including sub-types)
-     * @return a new {@link RolePlayerFragmentSet} with the same properties excepting relation-type labels
+     * @return a new RolePlayerFragmentSet with the same properties excepting relation-type labels
      */
     private RolePlayerFragmentSet addRelationTypeLabels(ImmutableSet<Label> relTypeLabels) {
         Preconditions.checkState(relationTypeLabels() == null);

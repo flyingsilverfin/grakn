@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -26,7 +26,7 @@ import grakn.core.concept.type.AttributeType;
 import grakn.core.concept.type.EntityType;
 import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.rule.GraknTestServer;
 import grakn.core.server.exception.InvalidKBException;
 import grakn.core.server.session.SessionImpl;
@@ -72,7 +72,7 @@ public class KCoreIT {
     @After
     public void closeSession() { session.close(); }
 
-    @Test(expected = GraqlQueryException.class)
+    @Test(expected = GraqlSemanticException.class)
     public void testKSmallerThan2_ThrowsException() {
         try (TransactionOLTP tx = session.transaction().read()) {
             tx.execute(Graql.compute().cluster().using(K_CORE).where(k(1L)));

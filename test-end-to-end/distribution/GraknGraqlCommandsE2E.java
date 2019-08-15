@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,6 +18,7 @@
 
 package grakn.core.distribution;
 
+import grakn.client.GraknClient;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -25,9 +26,14 @@ import org.junit.Test;
 import org.zeroturnaround.exec.ProcessExecutor;
 
 import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Properties;
 import java.util.concurrent.TimeoutException;
 
 import static grakn.core.distribution.DistributionE2EConstants.GRAKN_UNZIPPED_DIRECTORY;
@@ -71,7 +77,7 @@ public class GraknGraqlCommandsE2E {
     public void verifyDistributionFiles() {
         // assert files exist
         final Path grakn = GRAKN_UNZIPPED_DIRECTORY.resolve("grakn");
-        final Path graknProperties = GRAKN_UNZIPPED_DIRECTORY.resolve("conf").resolve("grakn.properties");
+        final Path graknProperties = GRAKN_UNZIPPED_DIRECTORY.resolve("server").resolve("conf").resolve("grakn.properties");
         final Path cassandraDirectory = GRAKN_UNZIPPED_DIRECTORY.resolve("server").resolve("services").resolve("cassandra");
         final Path libDirectory = GRAKN_UNZIPPED_DIRECTORY.resolve("server").resolve("services").resolve("lib");
 
@@ -93,6 +99,16 @@ public class GraknGraqlCommandsE2E {
         assertGraknIsRunning();
         commandExecutor.command("./grakn", "server", "stop").execute();
         assertGraknIsNotRunning();
+    }
+
+    /**
+     * test 'grakn server start --benchmark'
+     */
+    @Test
+    public void grakn_shouldBeAbleToStartWithBenchmarkOption() throws IOException, InterruptedException, TimeoutException {
+        commandExecutor.command("./grakn", "server", "start", "--benchmark").execute();
+        assertGraknIsRunning();
+        commandExecutor.command("./grakn", "server", "stop").execute();
     }
 
     /**
@@ -166,5 +182,94 @@ public class GraknGraqlCommandsE2E {
     public void grakn_whenReceivingInvalidCommand_shouldPrintHelp() throws IOException, InterruptedException, TimeoutException {
         String output = commandExecutor.command("./grakn", "invalid-command").execute().outputUTF8();
         assertThat(output, containsString("Invalid argument:"));
+    }
+
+
+    /**
+     * test 'grakn <some-invalid-command>'
+     */
+    @Test
+    public void grakn_whenReceivingInvalidServerCommand_shouldPrintHelp() throws IOException, InterruptedException, TimeoutException {
+        String output = commandExecutor.command("./grakn", "server", "start", "storag").execute().outputUTF8();
+        assertThat(output, containsString("Usage: grakn server COMMAND\n"));
+    }
+
+
+
+    /**
+     * Grakn should stop correctly when there are client connections still open
+     */
+
+    @Test
+    public void grakn_whenThereAreOpenConnections_shouldBeAbleToStop() throws InterruptedException, TimeoutException, IOException {
+        commandExecutor.command("./grakn", "server", "start").execute();
+        String host = "localhost:48555";
+        GraknClient graknClient = new GraknClient(host);
+        GraknClient.Transaction test = graknClient.session("test").transaction().write();
+        commandExecutor.command("./grakn", "server", "stop").execute();
+        assertGraknIsNotRunning();
+    }
+
+    @Test
+    public void grakn_shouldBeAbleToExecuteGraknServerClean_withCustomDbDirectory() throws IOException, TimeoutException, InterruptedException {
+        // modify the path to the `db` folder in `grakn.properties`
+        final Path graknProperties = GRAKN_UNZIPPED_DIRECTORY.resolve("server").resolve("conf").resolve("grakn.properties");
+        final String keyspace = "custom_db_test";
+
+        Properties prop = new Properties();
+        try (InputStream input = new FileInputStream(graknProperties.toFile())) {
+            prop.load(input);
+        }
+        prop.setProperty("data-dir", "server/new-db/");
+        graknProperties.toFile().setWritable(true);
+        try (OutputStream output = new FileOutputStream(graknProperties.toFile())) {
+            prop.store(output, null);
+        }
+
+        // start Grakn
+        commandExecutor.command("./grakn", "server", "start").execute();
+        assertGraknIsRunning();
+
+        // insert some data
+        String graql = "define person sub entity; insert $x isa person;\ncommit\n";
+        commandExecutor
+                .command("./grakn", "console", "-k", keyspace)
+                .redirectInput(new ByteArrayInputStream(graql.getBytes(StandardCharsets.UTF_8)))
+                .execute().outputUTF8();
+
+        graql = "compute count;\n";
+        String output = commandExecutor
+                .command("./grakn", "console", "-k", keyspace)
+                .redirectInput(new ByteArrayInputStream(graql.getBytes(StandardCharsets.UTF_8)))
+                .execute().outputUTF8();
+
+        // verify that the keyspace is not empty
+        assertThat(output, containsString("compute count;\n1"));
+
+        // stop Grakn
+        commandExecutor.command("./grakn", "server", "stop").execute();
+        assertGraknIsNotRunning();
+
+        // clean Grakn
+        String userInput = "y";
+        commandExecutor
+                .redirectInput(new ByteArrayInputStream(userInput.getBytes(StandardCharsets.UTF_8)))
+                .command("./grakn", "server", "clean").execute().outputUTF8();
+
+        // start Grakn
+        commandExecutor.command("./grakn", "server", "start").execute();
+        assertGraknIsRunning();
+
+        // verify that the keyspace is empty
+        graql = "compute count;\n";
+        output = commandExecutor
+                .command("./grakn", "console", "-k", keyspace)
+                .redirectInput(new ByteArrayInputStream(graql.getBytes(StandardCharsets.UTF_8)))
+                .execute().outputUTF8();
+
+        assertThat(output, containsString("compute count;\n0"));
+
+        // stop Grakn
+        commandExecutor.command("./grakn", "server", "stop").execute();
     }
 }

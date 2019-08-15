@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -104,8 +104,7 @@ public class FibonacciHeap<V, P> implements Iterable<FibonacciHeap<V, P>.Entry> 
                 comparator.compare(newPriority, entry.priority) <= 0,
                 "Cannot increase priority"
         );
-
-        assert oMinEntry != null;
+        Preconditions.checkNotNull(oMinEntry);
 
         entry.priority = newPriority;
         Entry oParent = entry.oParent;
@@ -291,7 +290,7 @@ public class FibonacciHeap<V, P> implements Iterable<FibonacciHeap<V, P>.Entry> 
 
         // update parent's `oFirstChild` pointer
         Entry oFirstChild = oParent.oFirstChild;
-        assert oFirstChild != null;
+        Preconditions.checkNotNull(oFirstChild);
 
         if (oFirstChild.equals(entry)) {
             if (oParent.degree == 0) {

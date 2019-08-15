@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,15 +18,17 @@
 
 package grakn.core.server.kb.concept;
 
+import grakn.core.concept.Concept;
 import grakn.core.concept.ConceptId;
 import grakn.core.concept.LabelId;
 import grakn.core.concept.thing.Thing;
 import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
 import grakn.core.server.kb.Schema;
-import grakn.core.server.kb.cache.Cache;
+import grakn.core.server.kb.Cache;
 import grakn.core.server.kb.structure.EdgeElement;
 import grakn.core.server.kb.structure.VertexElement;
+import grakn.core.server.session.TransactionOLTP;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -136,7 +138,7 @@ public class RelationEdge implements RelationStructure {
                 result.add(value());
             }
         }
-        return result.stream();
+        return result.stream().filter(thing -> !this.isDeleted());
     }
 
     private Role ownerRole() {
@@ -157,6 +159,12 @@ public class RelationEdge implements RelationStructure {
 
     @Override
     public void delete() {
+        if (!isDeleted()) edge().tx().statisticsDelta().decrement(type().label());
+        if (isInferred()){
+            TransactionOLTP tx = edge().tx();
+            Concept relation = tx.getConcept(id());
+            if (relation != null) tx.cache().removeInferredInstance(relation.asThing());
+        }
         edge().delete();
     }
 

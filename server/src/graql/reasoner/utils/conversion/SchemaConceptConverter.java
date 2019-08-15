@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -27,10 +27,10 @@ import java.util.stream.Stream;
 
 /**
  * <p>
- * Interface for conversion between compatible {@link SchemaConcept}s.
+ * Interface for conversion between compatible SchemaConcepts.
  * NB: assumes MATCH semantics - all types and their subs are considered.
  * </p>
- * @param <T> {@link SchemaConcept} type to convert from
+ * @param <T> SchemaConcept type to convert from
  *
  */
 public interface SchemaConceptConverter<T extends SchemaConcept>{
@@ -52,7 +52,7 @@ public interface SchemaConceptConverter<T extends SchemaConcept>{
 
     /**
      * @param entryConcept to be converted
-     * @return {@link Role}s that are compatible with this {@link SchemaConcept}
+     * @return Roles that are compatible with this SchemaConcept
      */
     Stream<Role> toCompatibleRoles(T entryConcept);
 }

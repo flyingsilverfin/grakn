@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,6 +18,7 @@
 
 package grakn.core.server.kb.concept;
 
+import com.google.common.base.Preconditions;
 import grakn.core.concept.Concept;
 import grakn.core.concept.Label;
 import grakn.core.concept.thing.Attribute;
@@ -28,7 +29,7 @@ import grakn.core.concept.type.Role;
 import grakn.core.concept.type.Type;
 import grakn.core.server.exception.TransactionException;
 import grakn.core.server.kb.Schema;
-import grakn.core.server.kb.cache.Cache;
+import grakn.core.server.kb.Cache;
 import grakn.core.server.kb.structure.EdgeElement;
 import grakn.core.server.kb.structure.Shard;
 import grakn.core.server.kb.structure.VertexElement;
@@ -97,19 +98,28 @@ public class TypeImpl<T extends Type, V extends Thing> extends SchemaConceptImpl
         VertexElement instanceVertex = vertex().tx().addVertexElement(instanceBaseType);
 
         vertex().tx().ruleCache().ackTypeInstance(this);
+        vertex().tx().statisticsDelta().increment(label());
+
         if (!Schema.MetaSchema.isMetaLabel(label())) {
             vertex().tx().cache().addedInstance(id());
-            if (isInferred) instanceVertex.property(Schema.VertexProperty.IS_INFERRED, true);
+            if (isInferred){
+                instanceVertex.property(Schema.VertexProperty.IS_INFERRED, true);
+            } else {
+                //creation of inferred concepts is an integral part of reasoning
+                //hence we only acknowledge non-inferred insertions
+                vertex().tx().queryCache().ackInsertion();
+            }
         }
 
         V instance = producer.apply(instanceVertex, getThis());
-        assert instance != null : "producer should never return null";
+        Preconditions.checkNotNull(instance, "producer should never return null");
+        if(isInferred) vertex().tx().cache().inferredInstance(instance);
+
         return instance;
     }
 
     /**
      * Checks if an Thing is allowed to be created and linked to this Type.
-     * This can fail is the Transaction.Type is read only.
      * It can also fail when attempting to attach an Attribute to a meta type
      */
     private void preCheckForInstanceCreation() {
@@ -131,7 +141,8 @@ public class TypeImpl<T extends Type, V extends Thing> extends SchemaConceptImpl
                 filter(sup -> !sup.equals(this)). //We already have the plays from ourselves
                 flatMap(sup -> TypeImpl.from(sup).directPlays().keySet().stream());
 
-        return Stream.concat(allRoles, superSet);
+        //NB: use distinct as roles from different types from the hierarchy can overlap
+        return Stream.concat(allRoles, superSet).distinct();
     }
 
     @Override
@@ -214,7 +225,7 @@ public class TypeImpl<T extends Type, V extends Thing> extends SchemaConceptImpl
         checkSchemaMutationAllowed();
 
         //Update the internal cache of role types played
-        cachedDirectPlays.ifPresent(map -> map.put(role, required));
+        cachedDirectPlays.ifCached(map -> map.put(role, required));
 
         //Update the cache of types played by the role
         ((RoleImpl) role).addCachedDirectPlaysByType(this);
@@ -271,7 +282,7 @@ public class TypeImpl<T extends Type, V extends Thing> extends SchemaConceptImpl
     public T unplay(Role role) {
         checkSchemaMutationAllowed();
         deleteEdge(Direction.OUT, Schema.EdgeLabel.PLAYS, (Concept) role);
-        cachedDirectPlays.ifPresent(set -> set.remove(role));
+        cachedDirectPlays.ifCached(set -> set.remove(role));
         ((RoleImpl) role).deleteCachedDirectPlaysByType(this);
 
         trackRolePlayers();

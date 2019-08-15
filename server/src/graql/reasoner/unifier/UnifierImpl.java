@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 /**
  *
  * <p>
- * Implementation of the {@link Unifier} interface.
+ * Implementation of the Unifier interface.
  * </p>
  *
  *
@@ -83,6 +83,11 @@ public class UnifierImpl implements Unifier {
     @Override
     public boolean isEmpty() {
         return unifier.isEmpty();
+    }
+
+    @Override
+    public boolean isNonInjective() {
+        return unifier.inverse().asMap().values().stream().anyMatch(s -> s.size() > 1);
     }
 
     @Override

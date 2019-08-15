@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,13 +19,13 @@
 package grakn.core.graql.reasoner.state;
 
 import grakn.core.concept.answer.ConceptMap;
-import grakn.core.graql.reasoner.query.ReasonerAtomicQuery;
-import java.util.stream.Stream;
 
 /**
  *
  * <p>
  * Base abstract class for resolution states.
+ *
+ * All resolution states have an ability to generate states - produce further resolvable states in the resolution tree.
  * </p>
  *
  *
@@ -33,9 +33,9 @@ import java.util.stream.Stream;
 public abstract class ResolutionState {
 
     private final ConceptMap sub;
-    private final QueryStateBase parentState;
+    private final AnswerPropagatorState parentState;
 
-    ResolutionState(ConceptMap sub, QueryStateBase parent){
+    ResolutionState(ConceptMap sub, AnswerPropagatorState parent){
         this.sub = sub;
         this.parentState = parent;
     }
@@ -46,7 +46,7 @@ public abstract class ResolutionState {
     /**
      * @return new sub goal generated from this state
      */
-    public abstract ResolutionState generateSubGoal();
+    public abstract ResolutionState generateChildState();
 
     /**
      * @return substitution this state has
@@ -66,12 +66,7 @@ public abstract class ResolutionState {
     }
 
     /**
-     * @return stream of queries to be acked for completion when processing is finished
-     */
-    public Stream<ReasonerAtomicQuery> completionQueries(){ return Stream.empty();}
-
-    /**
      * @return parent state of this state
      */
-    QueryStateBase getParentState(){ return parentState;}
+    AnswerPropagatorState getParentState(){ return parentState;}
 }

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -28,7 +28,7 @@ import grakn.core.concept.type.AttributeType;
 import grakn.core.concept.type.EntityType;
 import grakn.core.concept.type.RelationType;
 import grakn.core.concept.type.Role;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.rule.GraknTestServer;
 import grakn.core.server.exception.InvalidKBException;
 import grakn.core.server.kb.Schema;
@@ -80,7 +80,7 @@ public class PathIT {
     @After
     public void closeSession() { session.close(); }
 
-    @Test(expected = GraqlQueryException.class)
+    @Test(expected = GraqlSemanticException.class)
     public void testShortestPathExceptionIdNotFound() {
         // test on an empty tx
         try (TransactionOLTP tx = session.transaction().read()) {
@@ -88,7 +88,7 @@ public class PathIT {
         }
     }
 
-    @Test(expected = GraqlQueryException.class)
+    @Test(expected = GraqlSemanticException.class)
     public void testShortestPathExceptionIdNotFoundSubgraph() {
         addSchemaAndEntities();
         try (TransactionOLTP tx = session.transaction().read()) {

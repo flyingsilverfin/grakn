@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Base class for defining ontological {@link Atom} - ones referring to ontological elements.
+ * Base class for defining ontological Atom - ones referring to ontological elements.
  */
 public abstract class OntologicalAtom extends TypeAtom {
 

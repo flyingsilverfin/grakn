@@ -7,14 +7,12 @@ java_test(
     classpath_resources = ["//test-integration/resources:logback-test"],
     test_class = "grakn.core.server.kb.ValidatorIT",
     deps = [
-        "//common:common",
-        "//concept:concept",
-        "//server:server",
-        "//test-integration/rule:grakn-test-server",
-
-        "@graknlabs_graql//java:graql",
-
+        "//common",
+        "//concept",
         "//dependencies/maven/artifacts/org/hamcrest:hamcrest-library",
+        "//server",
+        "//test-integration/rule:grakn-test-server",
+        "@graknlabs_graql//java:graql",
     ],
 )
 
@@ -25,8 +23,8 @@ java_test(
     classpath_resources = ["//test-integration/resources:logback-test"],
     test_class = "grakn.core.server.kb.ValidateGlobalRulesIT",
     deps = [
-        "//concept:concept",
-        "//server:server",
+        "//concept",
+        "//server",
         "//test-integration/rule:grakn-test-server",
     ],
 )
@@ -38,33 +36,31 @@ java_test(
     classpath_resources = ["//test-integration/resources:logback-test"],
     test_class = "grakn.core.server.kb.TransactionIT",
     deps = [
-        "//common:common",
-        "//concept:concept",
-        "//server:server",
-        "//test-integration/rule:grakn-test-server",
-
+        "//common",
+        "//concept",
         "//dependencies/maven/artifacts/org/apache/tinkerpop:gremlin-core",
         "//dependencies/maven/artifacts/org/hamcrest:hamcrest-library",
+        "//server",
+        "//test-integration/rule:grakn-test-server",
+        "//test-integration/util:graql-test-util",
         "@graknlabs_graql//java:graql",
     ],
 )
 
 java_test(
-    name = "rule-it",
+    name = "rule-validation-it",
     size = "large",
-    srcs = ["RuleIT.java"],
+    srcs = ["RuleValidationIT.java"],
     classpath_resources = ["//test-integration/resources:logback-test"],
-    test_class = "grakn.core.server.kb.RuleIT",
+    test_class = "grakn.core.server.kb.RuleValidationIT",
     deps = [
-        "//common:common",
-        "//concept:concept",
-        "//server:server",
-
-        "@graknlabs_graql//java:graql",
-
+        "//common",
+        "//concept",
         "//dependencies/maven/artifacts/com/google/guava",
         "//dependencies/maven/artifacts/org/hamcrest:hamcrest-library",
+        "//server",
         "//test-integration/rule:grakn-test-server",
+        "@graknlabs_graql//java:graql",
     ],
 )
 
@@ -74,6 +70,6 @@ checkstyle_test(
         ":validator-it",
         ":validate-global-rules-it",
         ":grakn-transaction-it",
-        ":rule-it",
+        ":rule-validation-it",
     ],
 )

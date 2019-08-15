@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,11 +18,11 @@
 
 package grakn.core.graql.executor;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import grakn.benchmark.lib.instrumentation.ServerTracing;
 import grakn.core.concept.Concept;
+import grakn.core.concept.ConceptId;
 import grakn.core.concept.answer.Answer;
 import grakn.core.concept.answer.AnswerGroup;
 import grakn.core.concept.answer.ConceptList;
@@ -31,12 +31,13 @@ import grakn.core.concept.answer.ConceptSet;
 import grakn.core.concept.answer.ConceptSetMeasure;
 import grakn.core.concept.answer.Numeric;
 import grakn.core.graql.exception.GraqlCheckedException;
-import grakn.core.graql.exception.GraqlQueryException;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.graql.executor.property.PropertyExecutor;
 import grakn.core.graql.gremlin.GraqlTraversal;
 import grakn.core.graql.gremlin.TraversalPlanner;
 import grakn.core.graql.reasoner.DisjunctionIterator;
 import grakn.core.graql.reasoner.query.ReasonerQueries;
+import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
 import grakn.core.server.exception.GraknServerException;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.Graql;
@@ -56,13 +57,6 @@ import graql.lang.query.MatchClause;
 import graql.lang.query.builder.Filterable;
 import graql.lang.statement.Statement;
 import graql.lang.statement.Variable;
-import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
-import org.apache.tinkerpop.gremlin.structure.Edge;
-import org.apache.tinkerpop.gremlin.structure.Element;
-import org.apache.tinkerpop.gremlin.structure.Vertex;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -77,13 +71,16 @@ import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
+import org.apache.tinkerpop.gremlin.structure.Edge;
+import org.apache.tinkerpop.gremlin.structure.Element;
+import org.apache.tinkerpop.gremlin.structure.Vertex;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static grakn.core.common.util.CommonUtil.toImmutableList;
-import static grakn.core.common.util.CommonUtil.toImmutableSet;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
 
 /**
  * QueryExecutor is the class that executes Graql queries onto the database
@@ -109,31 +106,24 @@ public class QueryExecutor {
             validateClause(matchClause);
 
             if (!infer) {
-                // time to create the traversal plan
-
-                int createTraversalSpanId = ServerTracing.startScopedChildSpanWithParentContext("QueryExecutor.match create traversal", createStreamSpanId);
-
-            GraqlTraversal graqlTraversal = TraversalPlanner.createTraversal(matchClause.getPatterns(), transaction);
-
-                ServerTracing.closeScopedChildSpan(createTraversalSpanId);
-
                 // time to convert plan into a answer stream
                 int traversalToStreamSpanId = ServerTracing.startScopedChildSpanWithParentContext("QueryExecutor.match traversal to stream", createStreamSpanId);
 
-                answerStream = traversal(matchClause.getPatterns().variables(), graqlTraversal);
+                answerStream = matchClause.getPatterns().getDisjunctiveNormalForm().getPatterns().stream()
+                        .map(p -> ReasonerQueries.create(p, transaction))
+                        .map(ReasonerQueryImpl::getPattern)
+                        .flatMap(p -> traversal(p, TraversalPlanner.createTraversal(p, transaction)));
 
                 ServerTracing.closeScopedChildSpan(traversalToStreamSpanId);
             } else {
 
-            int disjunctionSpanId = ServerTracing.startScopedChildSpanWithParentContext("QueryExecutor.match disjunction iterator", createStreamSpanId);
+                int disjunctionSpanId = ServerTracing.startScopedChildSpanWithParentContext("QueryExecutor.match disjunction iterator", createStreamSpanId);
 
-                Stream<ConceptMap> stream = new DisjunctionIterator(matchClause, transaction).hasStream();
-                answerStream = stream.map(result -> result.project(matchClause.getSelectedNames()));
+                answerStream = new DisjunctionIterator(matchClause, transaction).hasStream();
 
                 ServerTracing.closeScopedChildSpan(disjunctionSpanId);
             }
-        }
-        catch(GraqlCheckedException e){
+        } catch (GraqlCheckedException e) {
             LOG.debug(e.getMessage());
             answerStream = Stream.empty();
         }
@@ -153,7 +143,7 @@ public class QueryExecutor {
                 .filter(statement -> statement.properties().size() == 0)
                 .collect(toList());
         if (statementsWithoutProperties.size() != 0) {
-            throw GraqlQueryException.matchWithoutAnyProperties(statementsWithoutProperties.get(0));
+            throw GraqlSemanticException.matchWithoutAnyProperties(statementsWithoutProperties.get(0));
         }
 
         validateVarVarComparisons(negationDNF);
@@ -167,12 +157,12 @@ public class QueryExecutor {
                     .flatMap(p -> p.getPatterns().stream())
                     .anyMatch(Pattern::isNegation);
             if (containsNegation) {
-                throw GraqlQueryException.usingNegationWithReasoningOff(matchClause.getPatterns());
+                throw GraqlSemanticException.usingNegationWithReasoningOff(matchClause.getPatterns());
             }
         }
     }
 
-    public void validateVarVarComparisons(Disjunction<Conjunction<Pattern>> negationDNF) {
+    private void validateVarVarComparisons(Disjunction<Conjunction<Pattern>> negationDNF) {
         // comparisons between two variables (ValueProperty and NotEqual, similar to !== and !=)
         // must only use variables that are also used outside of comparisons
 
@@ -200,19 +190,16 @@ public class QueryExecutor {
 
         // ensure variables used in var-var comparisons are used elsewhere too
         Set<Variable> unboundComparisonVariables = Sets.difference(varVarComparisons, notVarVarComparisons);
-        if (! unboundComparisonVariables.isEmpty()) {
-            throw GraqlQueryException.unboundComparisonVariables(unboundComparisonVariables);
+        if (!unboundComparisonVariables.isEmpty()) {
+            throw GraqlSemanticException.unboundComparisonVariables(unboundComparisonVariables);
         }
     }
 
     /**
-     * @param commonVars     set of variables of interest
-     * @param graqlTraversal graql traversal corresponding to the provided pattern
      * @return resulting answer stream
      */
-    public Stream<ConceptMap> traversal(Set<Variable> commonVars, GraqlTraversal graqlTraversal) {
-        Set<Variable> vars = Sets.filter(commonVars, Variable::isReturned);
-
+    public Stream<ConceptMap> traversal(Conjunction<Pattern> pattern, GraqlTraversal graqlTraversal) {
+        Set<Variable> vars = Sets.filter(pattern.variables(), Variable::isReturned);
         GraphTraversal<Vertex, Map<String, Element>> traversal = graqlTraversal.getGraphTraversal(transaction, vars);
 
         return traversal.toStream()
@@ -232,7 +219,7 @@ public class QueryExecutor {
         for (Variable var : vars) {
             Element element = elements.get(var.symbol());
             if (element == null) {
-                throw GraqlQueryException.unexpectedResult(var);
+                throw GraqlSemanticException.unexpectedResult(var);
             } else {
                 Concept result;
                 if (element instanceof Vertex) {
@@ -251,7 +238,7 @@ public class QueryExecutor {
         ImmutableSet.Builder<PropertyExecutor.Writer> executors = ImmutableSet.builder();
         List<Statement> statements = query.statements().stream()
                 .flatMap(statement -> statement.innerStatements().stream())
-                .collect(toImmutableList());
+                .collect(Collectors.toList());
 
         for (Statement statement : statements) {
             for (VarProperty property : statement.properties()) {
@@ -264,9 +251,9 @@ public class QueryExecutor {
 
     public ConceptMap undefine(GraqlUndefine query) {
         ImmutableSet.Builder<PropertyExecutor.Writer> executors = ImmutableSet.builder();
-        ImmutableList<Statement> statements = query.statements().stream()
+        List<Statement> statements = query.statements().stream()
                 .flatMap(statement -> statement.innerStatements().stream())
-                .collect(toImmutableList());
+                .collect(Collectors.toList());
 
         for (Statement statement : statements) {
             for (VarProperty property : statement.properties()) {
@@ -279,10 +266,9 @@ public class QueryExecutor {
     public Stream<ConceptMap> insert(GraqlInsert query) {
         int createExecSpanId = ServerTracing.startScopedChildSpan("QueryExecutor.insert create executors");
 
-
         Collection<Statement> statements = query.statements().stream()
                 .flatMap(statement -> statement.innerStatements().stream())
-                .collect(toImmutableList());
+                .collect(Collectors.toList());
 
         ImmutableSet.Builder<PropertyExecutor.Writer> executors = ImmutableSet.builder();
         for (Statement statement : statements) {
@@ -295,19 +281,18 @@ public class QueryExecutor {
 
         int answerStreamSpanId = ServerTracing.startScopedChildSpan("QueryExecutor.insert create answer stream");
 
-
         Stream<ConceptMap> answerStream;
         if (query.match() != null) {
             MatchClause match = query.match();
             Set<Variable> matchVars = match.getSelectedNames();
-            Set<Variable> insertVars = statements.stream().map(statement -> statement.var()).collect(toImmutableSet());
+            Set<Variable> insertVars = statements.stream().map(Statement::var).collect(ImmutableSet.toImmutableSet());
 
             LinkedHashSet<Variable> projectedVars = new LinkedHashSet<>(matchVars);
             projectedVars.retainAll(insertVars);
 
             Stream<ConceptMap> answers = transaction.stream(match.get(projectedVars), infer);
-            answerStream = answers.map(answer -> WriteExecutor
-                    .create(transaction, executors.build()).write(answer))
+            answerStream = answers
+                    .map(answer -> WriteExecutor.create(transaction, executors.build()).write(answer))
                     .collect(toList()).stream();
         } else {
             answerStream = Stream.of(WriteExecutor.create(transaction, executors.build()).write(new ConceptMap()));
@@ -353,26 +338,29 @@ public class QueryExecutor {
         answers = filter(query, answers);
 
         // TODO: We should not need to collect toSet, once we fix ConceptId.id() to not use cache.
-        // Stream.distinct() will then work properly when it calls ConceptImpl.equals()
         List<Concept> conceptsToDelete = answers
                 .flatMap(answer -> answer.concepts().stream())
-                // delete relations first: if the RPs are deleted, the relation is removed, so null by the time we try to delete it here
+                .distinct()
+                // delete relations first: if the RPs are deleted, the relation is removed, so null by the time we try to delete it
+                // this minimises number of `concept was already removed` exceptions
                 .sorted(Comparator.comparing(concept -> !concept.isRelation()))
                 .collect(Collectors.toList());
 
+
+        Set<ConceptId> deletedConceptIds = new HashSet<>();
         conceptsToDelete.forEach(concept -> {
             // a concept is either a schema concept or a thing
             if (concept.isSchemaConcept()) {
-                throw GraqlQueryException.deleteSchemaConcept(concept.asSchemaConcept());
+                throw GraqlSemanticException.deleteSchemaConcept(concept.asSchemaConcept());
             } else if (concept.isThing()) {
                 try {
-                    // if it's not inferred, we can delete it
-                    if (!concept.asThing().isInferred()) {
-                        concept.delete();
-                    }
+                    deletedConceptIds.add(concept.id());
+                    // a concept may have been cleaned up already
+                    // for instance if role players of an implicit attribute relation are deleted, the janus edge disappears
+                    concept.delete();
                 } catch (IllegalStateException janusVertexDeleted) {
                     if (janusVertexDeleted.getMessage().contains("was removed")) {
-                        // Tinkerpop throws this exception if we try to operate (including check `isInferred()`) on a vertex that was already deleted
+                        // Tinkerpop throws this exception if we try to operate on a vertex that was already deleted
                         // With the ordering of deletes, this edge case should only be hit when relations play roles in relations
                         LOG.debug("Trying to deleted concept that was already removed", janusVertexDeleted);
                     } else {
@@ -385,14 +373,15 @@ public class QueryExecutor {
         });
 
         // TODO: return deleted Concepts instead of ConceptIds
-        return new ConceptSet(conceptsToDelete.stream().map(Concept::id).collect(toSet()));
+        return new ConceptSet(deletedConceptIds);
     }
 
     public Stream<ConceptMap> get(GraqlGet query) {
-        Stream<ConceptMap> answers = match(query.match()).map(result -> result.project(query.vars())).distinct();
+        //NB: we need distinct as projection can produce duplicates
+        Stream<ConceptMap> answers = match(query.match()).map(ans -> ans.project(query.vars())).distinct();
 
         answers = filter(query, answers);
-
+        
         return answers;
     }
 

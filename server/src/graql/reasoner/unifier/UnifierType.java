@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,12 +18,11 @@
 
 package grakn.core.graql.reasoner.unifier;
 
+import grakn.core.concept.type.Role;
 import grakn.core.concept.type.SchemaConcept;
 import grakn.core.concept.type.Type;
 import grakn.core.graql.reasoner.atom.Atomic;
 import grakn.core.graql.reasoner.atom.binary.AttributeAtom;
-import grakn.core.graql.reasoner.cache.QueryCache;
-import grakn.core.graql.reasoner.cache.StructuralCache;
 import grakn.core.graql.reasoner.query.ReasonerQuery;
 import grakn.core.graql.reasoner.query.ReasonerQueryEquivalence;
 import grakn.core.server.kb.concept.ConceptUtils;
@@ -43,8 +42,8 @@ public enum UnifierType implements UnifierComparison, EquivalenceCoupling {
 
     /**
      * Exact unifier, requires type and id predicate bindings to match.
-     * Used in {@link QueryCache} comparisons.
-     * An EXACT unifier between two queries can only exists iff they are alpha-equivalent {@link ReasonerQueryEquivalence}.
+     * Used in QueryCache comparisons.
+     * An EXACT unifier between two queries can only exists iff they are alpha-equivalent ReasonerQueryEquivalence.
      * .
      */
     EXACT {
@@ -65,14 +64,20 @@ public enum UnifierType implements UnifierComparison, EquivalenceCoupling {
         }
 
         @Override
+        public boolean roleCompatibility(Role parent, Role child) {
+            return parent == null && child == null
+                    || parent != null && parent.equals(child);
+        }
+
+        @Override
         public boolean typePlayability(ReasonerQuery query, Variable var, Type type) {
             return true;
         }
 
         @Override
-        public boolean typeCompatibility(SchemaConcept parent, SchemaConcept child) {
-            return (parent == null && child == null)
-                    || (parent != null && !ConceptUtils.areDisjointTypes(parent, child, true));
+        public boolean typeCompatibility(Set<? extends SchemaConcept> parentTypes, Set<? extends SchemaConcept> childTypes) {
+            return super.typeCompatibility(parentTypes, childTypes)
+                    && parentTypes.equals(childTypes);
         }
 
         @Override
@@ -96,8 +101,8 @@ public enum UnifierType implements UnifierComparison, EquivalenceCoupling {
 
     /**
      * Similar to the exact one with addition to allowing id predicates to differ.
-     * Used in {@link StructuralCache} comparisons.
-     * A STRUCTURAL unifier between two queries can only exists iff they are structurally-equivalent {@link ReasonerQueryEquivalence}.
+     * Used in StructuralCache comparisons.
+     * A STRUCTURAL unifier between two queries can only exists iff they are structurally-equivalent ReasonerQueryEquivalence.
      */
     STRUCTURAL {
         @Override
@@ -117,14 +122,20 @@ public enum UnifierType implements UnifierComparison, EquivalenceCoupling {
         }
 
         @Override
+        public boolean roleCompatibility(Role parent, Role child) {
+            return parent == null && child == null
+                    || parent != null && parent.equals(child);
+        }
+
+        @Override
         public boolean typePlayability(ReasonerQuery query, Variable var, Type type) {
             return true;
         }
 
         @Override
-        public boolean typeCompatibility(SchemaConcept parent, SchemaConcept child) {
-            return (parent == null && child == null)
-                    || (parent != null && !ConceptUtils.areDisjointTypes(parent, child, true));
+        public boolean typeCompatibility(Set<? extends SchemaConcept> parentTypes, Set<? extends SchemaConcept> childTypes) {
+            return super.typeCompatibility(parentTypes, childTypes)
+                    && parentTypes.equals(childTypes);
         }
 
         @Override
@@ -178,13 +189,19 @@ public enum UnifierType implements UnifierComparison, EquivalenceCoupling {
         public boolean typeDirectednessCompatibility(Atomic parent, Atomic child) { return true; }
 
         @Override
+        public boolean roleCompatibility(Role parent, Role child) {
+            return parent == null || parent.subs().anyMatch(sub -> sub.equals(child));
+        }
+
+        @Override
         public boolean typePlayability(ReasonerQuery query, Variable var, Type type) {
             return query.isTypeRoleCompatible(var, type);
         }
 
         @Override
-        public boolean typeCompatibility(SchemaConcept parent, SchemaConcept child) {
-            return child == null || !ConceptUtils.areDisjointTypes(parent, child, false);
+        public boolean typeCompatibility(Set<? extends SchemaConcept> parentTypes, Set<? extends SchemaConcept> childTypes) {
+            return super.typeCompatibility(parentTypes, childTypes)
+                && (childTypes.isEmpty() || !ConceptUtils.areDisjointTypeSets(parentTypes, childTypes, false));
         }
 
         @Override
@@ -220,7 +237,7 @@ public enum UnifierType implements UnifierComparison, EquivalenceCoupling {
 
     /**
      * Unifier type used to determine whether two queries are in a subsumption relation.
-     * Subsumption can be regarded as a stricter version of the semantic overlap requirement seen in RULE {@link UnifierType}.
+     * Subsumption can be regarded as a stricter version of the semantic overlap requirement seen in RULE UnifierType.
      * Defining queries C and P and their respective answer sets A(C) and A(P) we say that a subsumptive unifier between child
      * and parent exists if:
      *
@@ -246,9 +263,17 @@ public enum UnifierType implements UnifierComparison, EquivalenceCoupling {
         public boolean inferValues() { return true; }
 
         @Override
+        public boolean allowsNonInjectiveMappings() { return false; }
+
+        @Override
         public boolean typeDirectednessCompatibility(Atomic parent, Atomic child) {
             //we require equal directedness as we can't always check the type in the answer (e.g. if we have a relation without rel var)
             return (parent.isDirect() == child.isDirect());
+        }
+
+        @Override
+        public boolean roleCompatibility(Role parent, Role child) {
+            return parent == null || parent.subs().anyMatch(sub -> sub.equals(child));
         }
 
         @Override
@@ -257,10 +282,10 @@ public enum UnifierType implements UnifierComparison, EquivalenceCoupling {
         }
 
         @Override
-        public boolean typeCompatibility(SchemaConcept parent, SchemaConcept child) {
-            return (child == null && parent == null)
-                    || (child != null && parent == null)
-                    || (child != null && parent.subs().anyMatch(child::equals));
+        public boolean typeCompatibility(Set<? extends SchemaConcept> parentTypes, Set<? extends SchemaConcept> childTypes) {
+            return super.typeCompatibility(parentTypes, childTypes)
+                    && (parentTypes.stream().allMatch(t -> t.subs().anyMatch(childTypes::contains)))
+                    && !ConceptUtils.areDisjointTypeSets(parentTypes, childTypes, false);
         }
 
         @Override

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -23,12 +23,13 @@ import grakn.core.graql.reasoner.query.ReasonerAtomicQuery;
 import grakn.core.graql.reasoner.query.ResolvableQuery;
 import grakn.core.graql.reasoner.state.ResolutionState;
 import grakn.core.graql.reasoner.unifier.UnifierImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.HashSet;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.Stack;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -44,20 +45,17 @@ public class ResolutionIterator extends ReasonerQueryIterator {
     private long oldAns = 0;
     private final ResolvableQuery query;
     private final Set<ConceptMap> answers = new HashSet<>();
-
+    private final Set<ReasonerAtomicQuery> subGoals;
     private final Stack<ResolutionState> states = new Stack<>();
 
-    private Set<ReasonerAtomicQuery> toComplete = new HashSet<>();
-
     private ConceptMap nextAnswer = null;
-    private final boolean reiterationRequired;
 
     private static final Logger LOG = LoggerFactory.getLogger(ResolutionIterator.class);
 
-    public ResolutionIterator(ResolvableQuery q, Set<ReasonerAtomicQuery> subGoals, boolean reiterate){
+    public ResolutionIterator(ResolvableQuery q, Set<ReasonerAtomicQuery> subGoals){
         this.query = q;
-        this.reiterationRequired = reiterate;
-        states.push(query.subGoal(new ConceptMap(), new UnifierImpl(), null, subGoals));
+        this.subGoals = subGoals;
+        states.push(query.resolutionState(new ConceptMap(), new UnifierImpl(), null, subGoals));
     }
 
     private ConceptMap findNextAnswer(){
@@ -70,9 +68,7 @@ public class ResolutionIterator extends ReasonerQueryIterator {
                 return state.getSubstitution();
             }
 
-            state.completionQueries().forEach(toComplete::add);
-
-            ResolutionState newState = state.generateSubGoal();
+            ResolutionState newState = state.generateChildState();
             if (newState != null) {
                 if (!state.isAnswerState()) states.push(state);
                 states.push(newState);
@@ -90,6 +86,15 @@ public class ResolutionIterator extends ReasonerQueryIterator {
         return nextAnswer;
     }
 
+    private Boolean reiterate = null;
+
+    private boolean reiterate(){
+        if (reiterate == null) {
+            reiterate = query.requiresReiteration();
+        }
+        return reiterate;
+    }
+
     /**
      * check whether answers available, if answers not fully computed compute more answers
      * @return true if answers available
@@ -100,18 +105,19 @@ public class ResolutionIterator extends ReasonerQueryIterator {
         if (nextAnswer != null) return true;
 
         //iter finished
-        if (reiterationRequired) {
+        if (reiterate()) {
             long dAns = answers.size() - oldAns;
             if (dAns != 0 || iter == 0) {
                 LOG.debug("iter: {} answers: {} dAns = {}", iter, answers.size(), dAns);
                 iter++;
-                states.push(query.subGoal(new ConceptMap(), new UnifierImpl(), null, new HashSet<>()));
+                states.push(query.resolutionState(new ConceptMap(), new UnifierImpl(), null, new HashSet<>()));
                 oldAns = answers.size();
                 return hasNext();
             }
         }
 
-        toComplete.forEach(query.tx().queryCache()::ackCompleteness);
+        subGoals.forEach(query.tx().queryCache()::ackCompleteness);
+        query.tx().queryCache().propagateAnswers();
 
         return false;
     }

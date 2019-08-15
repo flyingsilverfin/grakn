@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -29,25 +29,37 @@ exports_files(
     visibility = ["//visibility:public"]
 )
 
+
+genrule(
+    name = "version",
+    srcs = [
+        "src/server/templates/Version.java",
+        "//:VERSION",
+    ],
+    cmd = "VERSION=`cat $(location //:VERSION)`;sed -e \"s/{version}/$$VERSION/g\" $(location src/server/templates/Version.java) >> $@",
+    outs = ["Version.java"],
+    visibility = ["//common:__subpackages__"],
+)
+
 java_library(
     name = "server",
-    srcs = glob(["src/**/*.java"]),
+    srcs = glob(["src/**/*.java"], exclude=["**/templates/**", "**/test/**"]) + [":version"],
     deps = [
         # Internal dependencies
         "//api:api",
         "//common:common",
         "//concept:concept",
-        "//protocol:protocol-java",
 
         # External dependencies from @graknlabs
         "@graknlabs_graql//java:graql",
+        "@graknlabs_protocol//grpc/java:protocol",
         "@graknlabs_benchmark//lib:server-instrumentation",
 
         # External dependencies from Maven
-
-        "//dependencies/maven/artifacts/com/datastax/cassandra:cassandra-driver-core", # PREVIOUSLY UNDECLARED
+        "//dependencies/maven/artifacts/com/datastax/cassandra:cassandra-driver-core",
+        "//dependencies/maven/artifacts/org/apache/cassandra:cassandra-thrift",
+        "//dependencies/maven/artifacts/org/apache/hadoop:hadoop-annotations",
         "//dependencies/maven/artifacts/com/google/auto/value:auto-value",
-        "//dependencies/maven/artifacts/com/google/code/findbugs:annotations",
         "//dependencies/maven/artifacts/com/google/code/findbugs:jsr305",
         "//dependencies/maven/artifacts/com/google/guava:guava",
         "//dependencies/maven/artifacts/commons-cli:commons-cli", # PREVIOUSLY UNDECLARED
@@ -57,14 +69,12 @@ java_library(
         "//dependencies/maven/artifacts/io/grpc:grpc-stub",
         "//dependencies/maven/artifacts/io/zipkin/brave:brave",
         "//dependencies/maven/artifacts/org/apache/cassandra:cassandra-all", # PREVIOUSLY UNDECLARED
-        "//dependencies/maven/artifacts/org/apache/cassandra:cassandra-thrift", # PREVIOUSLY UNDECLARED
+        "//dependencies/maven/artifacts/org/apache/thrift:libthrift",
         "//dependencies/maven/artifacts/org/apache/commons:commons-lang3", # PREVIOUSLY UNDECLARED
-        "//dependencies/maven/artifacts/org/apache/hadoop:hadoop-annotations", # PREVIOUSLY UNDECLARED
         "//dependencies/maven/artifacts/org/apache/hadoop:hadoop-common", # PREVIOUSLY UNDECLARED
         "//dependencies/maven/artifacts/org/apache/hadoop:hadoop-mapreduce-client-core", # PREVIOUSLY UNDECLARED
         "//dependencies/maven/artifacts/org/apache/spark:spark-core-2-11",
         "//dependencies/maven/artifacts/org/apache/spark:spark-launcher-2-11", # PREVIOUSLY UNDECLARED
-        "//dependencies/maven/artifacts/org/apache/thrift:libthrift", # PREVIOUSLY UNDECLARED
         "//dependencies/maven/artifacts/org/apache/tinkerpop:gremlin-core", # PREVIOUSLY UNDECLARED
         "//dependencies/maven/artifacts/org/apache/tinkerpop:hadoop-gremlin",
         "//dependencies/maven/artifacts/org/apache/tinkerpop:spark-gremlin",
@@ -83,8 +93,7 @@ java_library(
     ],
     resources = ["LICENSE"] + glob(["resources/*"]),
     resource_strip_prefix = "server",
-    tags = ["maven_coordinates=io.grakn.core:server:{pom_version}"],
-    javacopts = ["-XepDisableAllChecks"], # TODO: THIS NEEDS TO BE REMOVED
+    tags = ["maven_coordinates=io.grakn.core:grakn-server:{pom_version}"],
     visibility = ["//visibility:public"]
 
 )
@@ -119,8 +128,8 @@ assemble_targz(
     output_filename = "grakn-core-server-linux",
     targets = [":server-deps", "//bin:assemble-bash-targz"],
     additional_files = {
-        "//server:conf/logback.xml": "conf/logback.xml",
-        "//server:conf/grakn.properties": "conf/grakn.properties",
+        "//server:conf/logback.xml": "server/conf/logback.xml",
+        "//server:conf/grakn.properties": "server/conf/grakn.properties",
         "//server:services/cassandra/cassandra.yaml": "server/services/cassandra/cassandra.yaml",
         "//server:services/cassandra/logback.xml": "server/services/cassandra/logback.xml",
         "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt"
@@ -142,8 +151,8 @@ assemble_zip(
     output_filename = "grakn-core-server-mac",
     targets = [":server-deps", "//bin:assemble-bash-targz"],
     additional_files = {
-        "//server:conf/logback.xml": "conf/logback.xml",
-        "//server:conf/grakn.properties": "conf/grakn.properties",
+        "//server:conf/logback.xml": "server/conf/logback.xml",
+        "//server:conf/grakn.properties": "server/conf/grakn.properties",
         "//server:services/cassandra/cassandra.yaml": "server/services/cassandra/cassandra.yaml",
         "//server:services/cassandra/logback.xml": "server/services/cassandra/logback.xml",
         "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt"
@@ -165,11 +174,12 @@ assemble_zip(
     output_filename = "grakn-core-server-windows",
     targets = [":server-deps", "//bin:assemble-bat-targz"],
     additional_files = {
-        "//server:conf/logback.xml": "conf/logback.xml",
-        "//server:conf/grakn.properties": "conf/grakn.properties",
+        "//server:conf/logback.xml": "server/conf/logback.xml",
+        "//server:conf/grakn.properties": "server/conf/grakn.properties",
         "//server:services/cassandra/cassandra.yaml": "server/services/cassandra/cassandra.yaml",
         "//server:services/cassandra/logback.xml": "server/services/cassandra/logback.xml",
-        "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt"
+        "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt",
+        "//server:services/hadoop/bin/winutils.exe": "server/services/hadoop/bin/winutils.exe"
     },
     empty_directories = [
         "server/db/cassandra",
@@ -209,8 +219,8 @@ assemble_apt(
     archives = [":server-deps"],
     installation_dir = "/opt/grakn/core/",
     files = {
-        "//server:conf/logback.xml": "conf/logback.xml",
-        "//server:conf/grakn.properties": "conf/grakn.properties",
+        "//server:conf/logback.xml": "server/conf/logback.xml",
+        "//server:conf/grakn.properties": "server/conf/grakn.properties",
         "//server:services/cassandra/cassandra.yaml": "server/services/cassandra/cassandra.yaml",
         "//server:services/cassandra/logback.xml": "server/services/cassandra/logback.xml",
         "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt"
@@ -248,8 +258,8 @@ assemble_rpm(
         "var/lib/grakn/db/cassandra"
      ],
     files = {
-        "//server:conf/logback.xml": "conf/logback.xml",
-        "//server:conf/grakn.properties": "conf/grakn.properties",
+        "//server:conf/logback.xml": "server/conf/logback.xml",
+        "//server:conf/grakn.properties": "server/conf/grakn.properties",
         "//server:services/cassandra/cassandra.yaml": "server/services/cassandra/cassandra.yaml",
         "//server:services/cassandra/logback.xml": "server/services/cassandra/logback.xml",
         "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt"

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -55,8 +55,8 @@ abstract class IsaFragmentSet extends EquivalentFragmentSet {
      * We can skip the mid-traversal check for edge instances in the following case:
      *
      * <ol>
-     *     <li>There is an {@link IsaFragmentSet} {@code $x-[isa:with-edges]->$X}
-     *     <li>There is a {@link LabelFragmentSet} {@code $X[label:foo,bar]}
+     *     <li>There is an IsaFragmentSet {@code $x-[isa:with-edges]->$X}
+     *     <li>There is a LabelFragmentSet {@code $X[label:foo,bar]}
      *     <li>The labels {@code foo} and {@code bar} are all not types that may have edge instances</li>
      * </ol>
      */

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -72,8 +72,10 @@ public class Server {
     }
 
     public void startIfNotRunning(String benchmarkFlag) {
-        boolean isServerRunning = executor.isProcessRunning(SERVER_PIDFILE);
-        if (isServerRunning) {
+        boolean isProcessRunning = executor.isProcessRunning(SERVER_PIDFILE);
+        boolean isGraknProcess = executor.isAGraknProcess(SERVER_PIDFILE, Grakn.class.getName());
+
+        if (isProcessRunning && isGraknProcess) {
             System.out.println(DISPLAY_NAME + " is already running");
         } else {
             start(benchmarkFlag);
@@ -85,11 +87,7 @@ public class Server {
     }
 
     public void status() {
-        executor.processStatus(SERVER_PIDFILE, DISPLAY_NAME);
-    }
-
-    public void statusVerbose() {
-        System.out.println(DISPLAY_NAME + " pid = '" + executor.getPidFromFile(SERVER_PIDFILE).orElse("") + "' (from " + SERVER_PIDFILE + "), '" + executor.getPidFromPsOf(getServerMainClass().getName()) + "' (from ps -ef)");
+        executor.processStatus(SERVER_PIDFILE, DISPLAY_NAME, Grakn.class.getName());
     }
 
     public void clean() {
@@ -143,7 +141,10 @@ public class Server {
             String errorMessage = "Process exited with code '" + startServerAsync.get().exitCode() + "': '" + startServerAsync.get().stderr() + "'";
             System.err.println(errorMessage);
             throw new GraknDaemonException(errorMessage);
-        } catch (InterruptedException | ExecutionException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new GraknDaemonException(e.getMessage(), e);
+        } catch (ExecutionException e) {
             throw new GraknDaemonException(e.getMessage(), e);
         }
     }
@@ -170,7 +171,7 @@ public class Server {
 
     private String getServerClassPath() {
         return graknHome.resolve("server").resolve("services").resolve("lib").toString() + File.separator + "*"
-                + File.pathSeparator + graknHome.resolve("conf");
+                + File.pathSeparator + graknHome.resolve("server").resolve("conf");
     }
 
     private static boolean isServerReady(String host, int port) {

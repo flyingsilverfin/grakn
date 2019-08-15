@@ -1,6 +1,6 @@
 #
 # GRAKN.AI - THE KNOWLEDGE GRAPH
-# Copyright (C) 2018 Grakn Labs Ltd
+# Copyright (C) 2019 Grakn Labs Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -16,14 +16,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-exports_files(["VERSION", "deployment.properties", "RELEASE_TEMPLATE.md"], visibility = ["//visibility:public"])
+exports_files(["VERSION", "deployment.properties", "RELEASE_TEMPLATE.md", "LICENSE", "README.md"], visibility = ["//visibility:public"])
 load("@graknlabs_bazel_distribution//apt:rules.bzl", "assemble_apt", "deploy_apt")
 load("@graknlabs_bazel_distribution//brew:rules.bzl", "deploy_brew")
 load("@graknlabs_bazel_distribution//common:rules.bzl", "assemble_targz", "java_deps", "assemble_zip", "checksum", "assemble_versioned")
 load("@graknlabs_bazel_distribution//github:rules.bzl", "deploy_github")
 load("@graknlabs_bazel_distribution//rpm:rules.bzl", "assemble_rpm", "deploy_rpm")
+load("@io_bazel_rules_docker//container:bundle.bzl", "container_bundle")
 load("@io_bazel_rules_docker//container:image.bzl", "container_image")
-load("@io_bazel_rules_docker//container:container.bzl", "container_push")
+load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 
 assemble_targz(
     name = "assemble-linux-targz",
@@ -31,11 +32,14 @@ assemble_targz(
                "//console:console-deps",
                "//bin:assemble-bash-targz"],
     additional_files = {
-        "//server:conf/logback.xml": "conf/logback.xml",
-        "//server:conf/grakn.properties": "conf/grakn.properties",
+        "//server:conf/logback.xml": "server/conf/logback.xml",
+        "//console:conf/logback.xml": "console/conf/logback.xml",
+        "//server:conf/grakn.properties": "server/conf/grakn.properties",
         "//server:services/cassandra/cassandra.yaml": "server/services/cassandra/cassandra.yaml",
         "//server:services/cassandra/logback.xml": "server/services/cassandra/logback.xml",
         "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt",
+        "//:LICENSE": "LICENSE",
+        "//:README.md": "README.md",
     },
     empty_directories = [
         "server/db/cassandra",
@@ -54,11 +58,14 @@ assemble_zip(
                "//console:console-deps",
                "//bin:assemble-bash-targz"],
     additional_files = {
-        "//server:conf/logback.xml": "conf/logback.xml",
-        "//server:conf/grakn.properties": "conf/grakn.properties",
+        "//server:conf/logback.xml": "server/conf/logback.xml",
+        "//console:conf/logback.xml": "console/conf/logback.xml",
+        "//server:conf/grakn.properties": "server/conf/grakn.properties",
         "//server:services/cassandra/cassandra.yaml": "server/services/cassandra/cassandra.yaml",
         "//server:services/cassandra/logback.xml": "server/services/cassandra/logback.xml",
         "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt",
+        "//:LICENSE": "LICENSE",
+        "//:README.md": "README.md",
     },
     empty_directories = [
         "server/db/cassandra",
@@ -77,11 +84,15 @@ assemble_zip(
                "//console:console-deps",
                "//bin:assemble-bat-targz"],
     additional_files = {
-        "//server:conf/logback.xml": "conf/logback.xml",
-        "//server:conf/grakn.properties": "conf/grakn.properties",
+        "//server:conf/logback.xml": "server/conf/logback.xml",
+        "//console:conf/logback.xml": "console/conf/logback.xml",
+        "//server:conf/grakn.properties": "server/conf/grakn.properties",
         "//server:services/cassandra/cassandra.yaml": "server/services/cassandra/cassandra.yaml",
         "//server:services/cassandra/logback.xml": "server/services/cassandra/logback.xml",
         "//server:services/grakn/grakn-core-ascii.txt": "server/services/grakn/grakn-core-ascii.txt",
+        "//:LICENSE": "LICENSE",
+        "//:README.md": "README.md",
+        "//server:services/hadoop/bin/winutils.exe": "server/services/hadoop/bin/winutils.exe"
     },
     empty_directories = [
         "server/db/cassandra",
@@ -145,6 +156,8 @@ checksum(
 deploy_github(
     name = "deploy-github",
     deployment_properties = "//:deployment.properties",
+    title = "Grakn Core",
+    title_append_version = True,
     release_description = "//:RELEASE_TEMPLATE.md",
     archive = ":assemble-versioned-all",
     version_file = "//:VERSION"
@@ -180,11 +193,15 @@ container_image(
     volumes = ["/server/db"]
 )
 
-container_push(
+container_bundle(
+    name = "assemble-docker-bundle",
+    images = {
+        "index.docker.io/graknlabs/grakn:{DOCKER_VERSION}": ":assemble-docker",
+        "index.docker.io/graknlabs/grakn:latest": ":assemble-docker",
+    }
+)
+
+docker_push(
     name = "deploy-docker",
-    image = ":assemble-docker",
-    format = "Docker",
-    registry = "index.docker.io",
-    repository = "graknlabs/grakn",
-    tag_file = "//:VERSION"
+    bundle = ":assemble-docker-bundle",
 )

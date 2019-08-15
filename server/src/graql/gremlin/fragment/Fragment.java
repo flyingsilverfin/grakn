@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,13 +19,14 @@
 package grakn.core.graql.gremlin.fragment;
 
 import com.google.common.collect.ImmutableSet;
+import grakn.core.common.util.Tuple;
 import grakn.core.concept.ConceptId;
 import grakn.core.concept.type.AttributeType;
 import grakn.core.graql.gremlin.spanningtree.graph.DirectedEdge;
+import grakn.core.graql.gremlin.spanningtree.graph.InstanceNode;
 import grakn.core.graql.gremlin.spanningtree.graph.Node;
 import grakn.core.graql.gremlin.spanningtree.graph.NodeId;
 import grakn.core.graql.gremlin.spanningtree.util.Weighted;
-import grakn.core.graql.reasoner.utils.Pair;
 import grakn.core.server.session.TransactionOLTP;
 import graql.lang.property.VarProperty;
 import graql.lang.statement.Variable;
@@ -42,7 +43,7 @@ import java.util.Set;
 
 /**
  * represents a graph traversal, with one start point and optionally an end point
- *
+ * <p>
  * A fragment is composed of four things:
  * <ul>
  * <li>A gremlin traversal function, that takes a gremlin traversal and appends some new gremlin steps</li>
@@ -50,13 +51,13 @@ import java.util.Set;
  * <li>An optional ending variable name, if the gremlin traversal navigates to a new Graql variable</li>
  * <li>A priority, that describes how efficient this traversal is to help with ordering the traversals</li>
  * </ul>
- *
+ * <p>
  * Variable names refer to Graql variables. Some of these variable names may be randomly-generated UUIDs, such as for
  * castings.
- *
+ * <p>
  * A {@code Fragment} is usually contained in a {@code EquivalentFragmentSet}, which contains multiple fragments describing
  * the different directions the traversal can be followed in, with different starts and ends.
- *
+ * <p>
  * A gremlin traversal is created from a {@code Query} by appending together fragments in order of priority, one from
  * each {@code EquivalentFragmentSet} describing the {@code Query}.
  */
@@ -145,12 +146,14 @@ public abstract class Fragment {
      * When building the query plan spanning tree, every fragment has a start defined with a variable
      * Some fragments are actually edges in JanusGraph (such as isa, sub, etc.)
      * These require another variable for the end() variable, and to force the MST algorithm to
-     * traverse these JanusGraph edges too, we insert a fake middle node representing the edge
+     * traverse these JanusGraph edges too, we insert a fake middle node representing the edge.
+     * We default to an INSTANCE_NODE node type, which is the most general node
+     *
      * @return
      */
     public Set<Node> getNodes() {
-        NodeId startNodeId = NodeId.of(NodeId.NodeType.VAR, start());
-        return Collections.singleton(new Node(startNodeId));
+        NodeId startNodeId = NodeId.of(NodeId.Type.VAR, start());
+        return Collections.singleton(new InstanceNode(startNodeId));
     }
 
     /**
@@ -160,10 +163,11 @@ public abstract class Fragment {
      * convert the fake middle node back into a Fragment after query planning is complete.
      * For pairs of nodes we may have two edges (node1, node2) and (node2, node1). These stem from the two
      * fragments that are `Equivalent` in EquivalentFragmentSet - directionality is used to disambiguate which choice to use
+     *
      * @param nodes
      * @return
      */
-    public Pair<Node, Node> getMiddleNodeDirectedEdge(Map<NodeId, Node> nodes) {
+    public Tuple<Node, Node> getMiddleNodeDirectedEdge(Map<NodeId, Node> nodes) {
         return null;
     }
 
@@ -180,11 +184,13 @@ public abstract class Fragment {
 
     /**
      * @param traversal the traversal to extend with this Fragment
-     * @param tx     the graph to execute the traversal on
+     * @param tx        the graph to execute the traversal on
      */
     public final GraphTraversal<Vertex, ? extends Element> applyTraversal(
             GraphTraversal<Vertex, ? extends Element> traversal, TransactionOLTP tx,
-            Collection<Variable> vars, @Nullable Variable currentVar) {
+            Collection<Variable> vars, Variable currentVar) {
+
+
         if (currentVar != null) {
             if (!currentVar.equals(start())) {
                 if (vars.contains(start())) {
@@ -192,12 +198,13 @@ public abstract class Fragment {
                     traversal.select(start().symbol());
                 } else {
                     // Restart traversal when fragments are disconnected
-                    traversal.V().as(start().symbol());
+                    traversal.V();
+                    selectVariable(traversal);
                 }
             }
         } else {
-            // If the variable name has not been visited yet, remember it and use the 'as' step
-            traversal.as(start().symbol());
+            // this is the very start of the traversal, record the step using `as` as we haven't visited the variable yet
+            selectVariable(traversal);
         }
 
         vars.add(start());
@@ -214,6 +221,11 @@ public abstract class Fragment {
         return traversal;
     }
 
+    public GraphTraversal<Vertex, ? extends Element> selectVariable(GraphTraversal<Vertex, ? extends Element> traversal) {
+        traversal.as(start().symbol());
+        return traversal;
+    }
+
     static <T, U> GraphTraversal<T, U> assignVar(GraphTraversal<T, U> traversal, Variable var, Collection<Variable> vars) {
         if (!vars.contains(var)) {
             // This variable name has not been encountered before, remember it and use the 'as' step
@@ -226,7 +238,7 @@ public abstract class Fragment {
 
     /**
      * @param traversal the traversal to extend with this Fragment
-     * @param tx     the transaction to execute the traversal on
+     * @param tx        the transaction to execute the traversal on
      * @param vars
      */
     abstract GraphTraversal<Vertex, ? extends Element> applyTraversalInner(
@@ -262,6 +274,16 @@ public abstract class Fragment {
     public abstract double internalFragmentCost();
 
     /**
+     * Estimate the "cost" of a starting point for each type of fixed cost fragment
+     * These are cost heuristic proxies using statistics
+     *
+     * @return
+     */
+    public double estimatedCostAsStartingPoint(TransactionOLTP tx) {
+        throw new UnsupportedOperationException("Fragment of type " + this.getClass() + " is not a fixed cost starting point - no esimated cost as a starting point.");
+    }
+
+    /**
      * If a fragment has fixed cost, the traversal is done using index. This makes the fragment a good starting point.
      * A plan should always start with these fragments when possible.
      */
@@ -271,14 +293,6 @@ public abstract class Fragment {
 
     public Fragment getInverse() {
         return this;
-    }
-
-    /**
-     * Indicates whether the fragment can be used on an {@link org.apache.tinkerpop.gremlin.structure.Edge} as well as
-     * a {@link org.apache.tinkerpop.gremlin.structure.Vertex}.
-     */
-    public boolean canOperateOnEdges() {
-        return false;
     }
 
     /**

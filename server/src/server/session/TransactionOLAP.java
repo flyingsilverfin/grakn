@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -74,8 +74,9 @@ public class TransactionOLAP {
             applyFilters(types, includesRolePlayerEdges);
             return graphComputer.submit().get();
         } catch (ExecutionException e) {
-            throw asRuntimeException(e.getCause());
+            throw asRuntimeException(e);
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw asRuntimeException(e);
         }
     }
@@ -94,6 +95,12 @@ public class TransactionOLAP {
 
     private RuntimeException asRuntimeException(Throwable throwable) {
         Throwable cause = throwable.getCause();
+        // In GraknSparkComputer when we catch exception in submitWithExecutor()
+        // we wrap the real exception in a RuntimeException, so here we need to un-wrap to get to the
+        // real Exception
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
         if (cause instanceof RuntimeException) {
             return (RuntimeException) cause;
         } else {
@@ -110,14 +117,14 @@ public class TransactionOLAP {
 
         Traversal<Vertex, Edge> edgeFilter;
         if (filterAllEdges) {
-            edgeFilter = __.<Vertex>bothE().limit(0);
+            edgeFilter = __.bothE().limit(0);
         } else {
             edgeFilter = includesRolePlayerEdge ?
                     __.union(
-                            __.<Vertex>bothE(Schema.EdgeLabel.ROLE_PLAYER.getLabel()),
-                            __.<Vertex>bothE(Schema.EdgeLabel.ATTRIBUTE.getLabel())
+                            __.bothE(Schema.EdgeLabel.ROLE_PLAYER.getLabel()),
+                            __.bothE(Schema.EdgeLabel.ATTRIBUTE.getLabel())
                                     .has(Schema.EdgeProperty.RELATION_TYPE_LABEL_ID.name(), P.within(labelIds))) :
-                    __.<Vertex>bothE(Schema.EdgeLabel.ATTRIBUTE.getLabel())
+                    __.bothE(Schema.EdgeLabel.ATTRIBUTE.getLabel())
                             .has(Schema.EdgeProperty.RELATION_TYPE_LABEL_ID.name(), P.within(labelIds));
         }
 

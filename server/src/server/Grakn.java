@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -48,7 +48,37 @@ public class Grakn {
     private static final Logger LOG = LoggerFactory.getLogger(Grakn.class);
 
     public static void main(String[] args) {
+        Thread.setDefaultUncaughtExceptionHandler((Thread t, Throwable e) ->
+                LOG.error(ErrorMessage.UNCAUGHT_EXCEPTION.getMessage(t.getName()), e));
 
+        try {
+            String graknPidFileProperty = Optional.ofNullable(SystemProperty.GRAKN_PID_FILE.value())
+                    .orElseThrow(() -> new RuntimeException(ErrorMessage.GRAKN_PIDFILE_SYSTEM_PROPERTY_UNDEFINED.getMessage()));
+
+            Path pidfile = Paths.get(graknPidFileProperty);
+            PIDManager pidManager = new PIDManager(pidfile);
+            pidManager.trackGraknPid();
+
+            // Start Server with timer
+            Stopwatch timer = Stopwatch.createStarted();
+            boolean benchmark = parseBenchmarkArg(args);
+            Server server = ServerFactory.createServer(benchmark);
+            server.start();
+            LOG.info("Grakn started in {}", timer.stop());
+            try {
+                server.awaitTermination();
+            } catch (InterruptedException e) {
+                // grakn server stop is called
+                server.close();
+                Thread.currentThread().interrupt();
+            }
+        } catch (RuntimeException | IOException e) {
+            LOG.error(ErrorMessage.UNCAUGHT_EXCEPTION.getMessage(e.getMessage()), e);
+            System.err.println(ErrorMessage.UNCAUGHT_EXCEPTION.getMessage(e.getMessage()));
+        }
+    }
+
+    private static boolean parseBenchmarkArg(String[] args){
         Option enableBenchmark = Option.builder("b")
                 .longOpt("benchmark")
                 .hasArg(false)
@@ -69,34 +99,7 @@ public class Grakn {
             throw new RuntimeException(e.getMessage());
         }
 
-        boolean benchmark = false;
-        if (arguments.hasOption("benchmark")) {
-            benchmark = true;
-            System.out.println("Benchmarking enabled");
-        }
-
-
-        Thread.setDefaultUncaughtExceptionHandler((Thread t, Throwable e) ->
-                LOG.error(ErrorMessage.UNCAUGHT_EXCEPTION.getMessage(t.getName()), e));
-
-        try {
-            String graknPidFileProperty = Optional.ofNullable(SystemProperty.GRAKN_PID_FILE.value())
-                    .orElseThrow(() -> new RuntimeException(ErrorMessage.GRAKN_PIDFILE_SYSTEM_PROPERTY_UNDEFINED.getMessage()));
-
-            Path pidfile = Paths.get(graknPidFileProperty);
-            PIDManager pidManager = new PIDManager(pidfile);
-            pidManager.trackGraknPid();
-
-            // Start Server with timer
-            Stopwatch timer = Stopwatch.createStarted();
-            Server server = ServerFactory.createServer(benchmark);
-            server.start();
-
-            LOG.info("Grakn started in {}", timer.stop());
-        } catch (RuntimeException | IOException e) {
-            LOG.error(ErrorMessage.UNCAUGHT_EXCEPTION.getMessage(e.getMessage()), e);
-            System.err.println(ErrorMessage.UNCAUGHT_EXCEPTION.getMessage(e.getMessage()));
-        }
+        return arguments.hasOption("benchmark");
     }
 }
 

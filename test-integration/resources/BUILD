@@ -21,3 +21,9 @@ filegroup(
     srcs = ["grakn-no-caches.properties"],
     visibility = ["//visibility:public"]
 )
+
+filegroup(
+    name = "grakn-small-tx-cache",
+    srcs = ["grakn-small-tx-cache.properties"],
+    visibility = ["//visibility:public"]
+)

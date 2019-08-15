@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 
 /**
  * <p>
- * Implementation of {@link SchemaConceptConverter} allowing for conversion of role types to compatible types.
+ * Implementation of SchemaConceptConverter allowing for conversion of role types to compatible types.
  * </p>
  *
  */

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -37,7 +37,7 @@ import java.util.stream.Stream;
 /**
  *
  * <p>
- * Base class for collections of {@link ReasonerQueryImpl} queries with equality comparison {@link ReasonerQueryEquivalence}.
+ * Base class for collections of ReasonerQueryImpl queries with equality comparison ReasonerQueryEquivalence.
  * </p>
  *
  *
@@ -129,7 +129,7 @@ public abstract class QueryCollectionBase{
      * @param plan current plan
      * @return set of candidate queries for this query
      */
-    public QuerySet getCandidates(ReasonerQueryImpl entryQuery, QueryList plan){
+    QuerySet getCandidates(ReasonerQueryImpl entryQuery, QueryList plan){
         Equivalence.Wrapper<ReasonerQueryImpl> query = equality().wrap(entryQuery);
         Set<Equivalence.Wrapper<ReasonerQueryImpl>> availableQueries = this.wrappedStream()
                 .filter(q -> !(plan.contains(q) || q.equals(query)))

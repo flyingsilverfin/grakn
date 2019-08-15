@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -24,8 +24,6 @@ import grakn.core.common.exception.ErrorMessage;
 import grakn.core.server.keyspace.KeyspaceImpl;
 import org.apache.tinkerpop.gremlin.hadoop.structure.HadoopGraph;
 import org.apache.tinkerpop.gremlin.structure.util.GraphFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,65 +32,56 @@ import java.util.Properties;
 /**
  * This class produces a graph on top of {@link HadoopGraph}.
  * With this vendor some exceptions are in places:
- * 1. The Grakn API cannnot work on {@link HadoopGraph} this is due to not being able to directly write to a
+ * 1. The Grakn API cannot work on {@link HadoopGraph} this is due to not being able to directly write to a
  * {@link HadoopGraph}.
  * 2. This factory primarily exists as a means of producing a
  * {@link org.apache.tinkerpop.gremlin.process.computer.GraphComputer} on of {@link HadoopGraph}
  */
 public class HadoopGraphFactory {
-
-    private final Logger LOG = LoggerFactory.getLogger(HadoopGraphFactory.class);
-    private Config config;
-    private HadoopGraph graph = null;
+    // Keep visibility to protected as this is used by KGMS
+    protected Config config;
     //These properties are loaded in by default and can optionally be overwritten
-    private static final Properties DEFAULT_PROPERTIES;
+    private static final Properties DEFAULT_OLAP_PROPERTIES;
+    private static final String DEFAULT_OLAP_PATH = "resources/default-OLAP-configs.properties";
+    private static final String STORAGE_HOSTNAME = ConfigKey.STORAGE_HOSTNAME.name();
+    // Keep visibility to protected as this is used by KGMS
+    protected static final String STORAGE_KEYSPACE = ConfigKey.STORAGE_KEYSPACE.name();
+    // Keep visibility to protected as this is used by KGMS
+    protected static final String JANUSGRAPHMR_IOFORMAT_CONF = "janusgraphmr.ioformat.conf.";
 
     static {
-        String DEFAULT_CONFIG = "resources/default-configs.properties";
-        DEFAULT_PROPERTIES = new Properties();
-        try (InputStream in = HadoopGraphFactory.class.getClassLoader().getResourceAsStream(DEFAULT_CONFIG)) {
-            DEFAULT_PROPERTIES.load(in);
+        DEFAULT_OLAP_PROPERTIES = new Properties();
+        try (InputStream in = HadoopGraphFactory.class.getClassLoader().getResourceAsStream(DEFAULT_OLAP_PATH)) {
+            DEFAULT_OLAP_PROPERTIES.load(in);
         } catch (IOException e) {
-            throw new RuntimeException(ErrorMessage.INVALID_PATH_TO_CONFIG.getMessage(DEFAULT_CONFIG), e);
+            throw new RuntimeException(ErrorMessage.INVALID_PATH_TO_CONFIG.getMessage(DEFAULT_OLAP_PATH), e);
         }
     }
 
-    public HadoopGraphFactory(Config config, KeyspaceImpl keyspace) {
-        this.config = addHadoopProperties(config, keyspace);
+    public HadoopGraphFactory(Config config) {
+        this.config = config;
+        String hostnameValue = this.config.getProperty(ConfigKey.STORAGE_HOSTNAME);
+        this.config.properties().setProperty(JANUSGRAPHMR_IOFORMAT_CONF + STORAGE_HOSTNAME, hostnameValue);
+        //Load Defaults
+        DEFAULT_OLAP_PROPERTIES.forEach((key, value) -> {
+            if (!this.config.properties().containsKey(key)) {
+                this.config.properties().put(key, value);
+            }
+        });
     }
 
-    public synchronized HadoopGraph getGraph() {
-        if (graph == null) {
-            LOG.warn("Hadoop graph ignores parameter address.");
-
-            //Load Defaults
-            DEFAULT_PROPERTIES.forEach((key, value) -> {
-                if (!config.properties().containsKey(key)) {
-                   config.properties().put(key, value);
-                }
-            });
-
-            graph = (HadoopGraph) GraphFactory.open(config.properties());
-        }
-
-        return graph;
+    synchronized HadoopGraph getGraph(KeyspaceImpl keyspace) {
+        return (HadoopGraph) GraphFactory.open(addHadoopProperties(keyspace.name()).properties());
     }
 
-    protected Config addHadoopProperties(Config config, KeyspaceImpl keyspace) {
-        // Janus configurations
-        String graphMrPrefixConf = "janusgraphmr.ioformat.conf.";
-        String inputKeyspaceConf = "cassandra.input.keyspace";
-        String keyspaceConf = "storage.cassandra.keyspace";
-        String hostnameConf = "storage.hostname";
-
-        // Values
-        String keyspaceValue = keyspace.name();
-        String hostnameValue = config.getProperty(ConfigKey.STORAGE_HOSTNAME);
-
-        config.properties().setProperty(graphMrPrefixConf + hostnameConf, hostnameValue);
-        config.properties().setProperty(graphMrPrefixConf + keyspaceConf, keyspaceValue);
-        config.properties().setProperty(inputKeyspaceConf, keyspaceValue);
-
-        return config;
+    /**
+     * Clone Grakn config and adds OLAP specific keyspace property
+     * @param keyspaceName keyspace value to add as a property
+     * @return new copy of configuration, specific for current keyspace
+     */
+    private Config addHadoopProperties(String keyspaceName) {
+        Config localConfig = Config.of(config.properties());
+        localConfig.properties().setProperty(JANUSGRAPHMR_IOFORMAT_CONF + STORAGE_KEYSPACE, keyspaceName);
+        return localConfig;
     }
 }

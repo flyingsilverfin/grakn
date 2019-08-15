@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -22,7 +22,9 @@ import grakn.core.common.exception.ErrorMessage;
 import grakn.core.common.exception.GraknException;
 import grakn.core.server.keyspace.KeyspaceImpl;
 
-import static grakn.core.common.exception.ErrorMessage.BACKEND_EXCEPTION;
+import javax.annotation.CheckReturnValue;
+import javax.annotation.Nullable;
+
 import static grakn.core.common.exception.ErrorMessage.INITIALIZATION_EXCEPTION;
 
 /**
@@ -42,6 +44,21 @@ public class GraknServerException extends GraknException {
         super(error, e);
     }
 
+    @CheckReturnValue
+    public static GraknServerException unreachableStatement(Exception cause) {
+        return unreachableStatement(null, cause);
+    }
+
+    @CheckReturnValue
+    public static GraknServerException unreachableStatement(String message) {
+        return unreachableStatement(message, null);
+    }
+
+    @CheckReturnValue
+    private static GraknServerException unreachableStatement(@Nullable String message, Exception cause) {
+        return new GraknServerException("Statement expected to be unreachable: " + message, cause);
+    }
+
     @Override
     public String getName() {
         return this.getClass().getName();
@@ -49,14 +66,6 @@ public class GraknServerException extends GraknException {
 
     public static GraknServerException create(String error) {
         return new GraknServerException(error);
-    }
-
-    /**
-     * Thrown when the persistence layer throws an unexpected exception.
-     * This can include timeouts
-     */
-    public static GraknServerException unknown(Exception e) {
-        return new GraknServerException(BACKEND_EXCEPTION.getMessage(), e);
     }
 
     public static GraknServerException initializationException(KeyspaceImpl keyspace) {

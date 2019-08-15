@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,7 +19,6 @@
 package grakn.core.server.rpc;
 
 import grakn.core.common.exception.GraknException;
-import grakn.core.common.util.CommonUtil;
 import grakn.core.concept.ConceptId;
 import grakn.core.concept.answer.AnswerGroup;
 import grakn.core.concept.answer.ConceptList;
@@ -29,15 +28,15 @@ import grakn.core.concept.answer.ConceptSetMeasure;
 import grakn.core.concept.answer.Explanation;
 import grakn.core.concept.answer.Numeric;
 import grakn.core.concept.type.AttributeType;
-import grakn.core.graql.exception.GraqlQueryException;
-import grakn.core.protocol.AnswerProto;
-import grakn.core.protocol.ConceptProto;
-import grakn.core.protocol.SessionProto;
+import grakn.core.graql.exception.GraqlSemanticException;
 import grakn.core.server.exception.GraknServerException;
 import grakn.core.server.exception.InvalidKBException;
 import grakn.core.server.exception.PropertyNotUniqueException;
 import grakn.core.server.exception.TemporaryWriteException;
 import grakn.core.server.exception.TransactionException;
+import grakn.protocol.session.AnswerProto;
+import grakn.protocol.session.ConceptProto;
+import grakn.protocol.session.SessionProto;
 import graql.lang.exception.GraqlException;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -191,7 +190,7 @@ public class ResponseBuilder {
             } else if (concept.isType()) {
                 return ConceptProto.Concept.BASE_TYPE.META_TYPE;
             } else {
-                throw CommonUtil.unreachableStatement("Unrecognised concept " + concept);
+                throw GraknServerException.unreachableStatement("Unrecognised concept " + concept);
             }
         }
 
@@ -211,7 +210,7 @@ public class ResponseBuilder {
             } else if (dataType.equals(AttributeType.DataType.DATE)) {
                 return ConceptProto.AttributeType.DATA_TYPE.DATE;
             } else {
-                throw CommonUtil.unreachableStatement("Unrecognised " + dataType);
+                throw GraknServerException.unreachableStatement("Unrecognised " + dataType);
             }
         }
 
@@ -254,7 +253,7 @@ public class ResponseBuilder {
             } else if (value instanceof LocalDateTime) {
                 builder.setDate(((LocalDateTime) value).atZone(ZoneId.of("Z")).toInstant().toEpochMilli());
             } else {
-                throw CommonUtil.unreachableStatement("Unrecognised " + value);
+                throw GraknServerException.unreachableStatement("Unrecognised " + value);
             }
 
             return builder.build();
@@ -388,7 +387,7 @@ public class ResponseBuilder {
                 return exception(Status.INTERNAL, message);
             } else if (e instanceof PropertyNotUniqueException) {
                 return exception(Status.ALREADY_EXISTS, message);
-            } else if (e instanceof TransactionException | e instanceof GraqlQueryException |
+            } else if (e instanceof TransactionException | e instanceof GraqlSemanticException |
                     e instanceof GraqlException | e instanceof InvalidKBException) {
                 return exception(Status.INVALID_ARGUMENT, message);
             }

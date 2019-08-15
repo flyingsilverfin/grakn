@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,28 +19,28 @@
 package grakn.core.graql.reasoner.plan;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 import grakn.core.graql.exception.GraqlQueryException;
-import grakn.core.graql.gremlin.GraqlTraversal;
 import grakn.core.graql.reasoner.atom.Atom;
-import grakn.core.graql.reasoner.atom.Atomic;
 import grakn.core.graql.reasoner.atom.AtomicBase;
-import grakn.core.graql.reasoner.atom.predicate.IdPredicate;
-import grakn.core.graql.reasoner.atom.predicate.NeqIdPredicate;
 import grakn.core.graql.reasoner.query.ReasonerQueryImpl;
 import graql.lang.statement.Variable;
-
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Class defining the resolution plan for a given {@link ReasonerQueryImpl} at an atom level.
- * The plan is constructed  using the {@link GraqlTraversal} with the aid of {@link GraqlTraversalPlanner}.
+ * Class defining the resolution plan for a given ReasonerQueryImpl at an atom level.
+ * The plan is constructed  using the GraqlTraversal with the aid of GraqlTraversalPlanner.
  */
 public final class ResolutionPlan {
 
-    final private ImmutableList<Atom> plan;
-    final private ReasonerQueryImpl query;
+    private final ImmutableList<Atom> plan;
+    private final ReasonerQueryImpl query;
+    private static final Logger LOG = LoggerFactory.getLogger(ResolutionPlan.class);
 
     public ResolutionPlan(ReasonerQueryImpl q){
         this.query = q;
@@ -65,37 +65,24 @@ public final class ResolutionPlan {
         return query.selectAtoms().allMatch(plan::contains);
     }
 
-    /**
-     * @return true if the plan is valid with respect to provided query - its resolution doesn't lead to any non-ground neq predicates
-     */
-    private boolean isNeqGround(){
-        Set<NeqIdPredicate> nonGroundPredicates = new HashSet<>();
-        Set<Variable> mappedVars = this.query.getAtoms(IdPredicate.class).map(Atomic::getVarName).collect(Collectors.toSet());
-        for(Atom atom : this.plan){
-            mappedVars.addAll(atom.getVarNames());
-            atom.getPredicates(NeqIdPredicate.class)
-                    .forEach(neq -> {
-                        //look for non-local non-ground predicates
-                        if (!mappedVars.containsAll(neq.getVarNames())
-                                && !atom.getVarNames().containsAll(neq.getVarNames())){
-                            nonGroundPredicates.add(neq);
-                        } else{
-                            //if this is ground for this atom but non-ground for another it is ground
-                            if (nonGroundPredicates.contains(neq)) nonGroundPredicates.remove(neq);
-                        }
-                    });
-        }
-        return nonGroundPredicates.isEmpty();
-    }
 
     private void validatePlan() {
-        if (!isNeqGround()) {
-            throw GraqlQueryException.nonGroundNeqPredicate(query);
-        }
         if (!isComplete()){
             throw GraqlQueryException.incompleteResolutionPlan(query);
         }
-    }
 
+        Iterator<Atom> iterator = plan.iterator();
+        Set<Variable> vars = new HashSet<>(iterator.next().getVarNames());
+        while (iterator.hasNext()) {
+            Atom next = iterator.next();
+            Set<Variable> varNames = next.getVarNames();
+            boolean planDisconnected = Sets.intersection(varNames, vars).isEmpty();
+            if (planDisconnected) {
+                LOG.debug("Disconnected resolution plan produced:\n{}", this);
+                break;
+            }
+            vars.addAll(varNames);
+        }
+    }
 }
 

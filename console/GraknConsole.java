@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -19,9 +19,8 @@
 package grakn.core.console;
 
 import grakn.client.GraknClient;
-import grakn.core.common.exception.ErrorMessage;
-import grakn.core.common.exception.GraknException;
-import grakn.core.common.util.GraknVersion;
+import grakn.client.exception.GraknClientException;
+import grakn.core.console.exception.ErrorMessage;
 import grakn.core.console.exception.GraknConsoleException;
 import io.grpc.Status;
 import org.apache.commons.cli.CommandLine;
@@ -40,9 +39,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static grakn.core.common.util.CommonUtil.toImmutableList;
 
 /**
  * Grakn Console is a Command Line Application to interact with the Grakn Core database
@@ -56,7 +54,6 @@ public class GraknConsole {
     private static final String URI = "r";
     private static final String NO_INFER = "n";
     private static final String HELP = "h";
-    private static final String VERSION = "v";
 
     private final Options options = getOptions();
     private final CommandLine commandLine;
@@ -88,7 +85,6 @@ public class GraknConsole {
         options.addOption(URI, "address", true, "Grakn Server address");
         options.addOption(NO_INFER, "no_infer", false, "do not perform inference on results");
         options.addOption(HELP, "help", false, "print usage message");
-        options.addOption(VERSION, "version", false, "print version");
 
         return options;
     }
@@ -98,21 +94,21 @@ public class GraknConsole {
         if (commandLine.hasOption(HELP) || !commandLine.getArgList().isEmpty()) {
             printHelp(printOut);
         }
-        // Print Grakn Console version
-        else if (commandLine.hasOption(VERSION)) {
-            printOut.println(GraknVersion.VERSION);
-        }
         // Start a Console Session to load some Graql file(s)
         else if (commandLine.hasOption(FILE)) {
             try (ConsoleSession consoleSession = new ConsoleSession(serverAddress, keyspace, infer, printOut, printErr)) {
+                //Intercept Ctrl+C and gracefully terminate connection with server
+                Runtime.getRuntime().addShutdownHook(new Thread(consoleSession::close, "grakn-console-shutdown"));
                 String[] paths = commandLine.getOptionValues(FILE);
-                List<Path> filePaths = Stream.of(paths).map(Paths::get).collect(toImmutableList());
+                List<Path> filePaths = Stream.of(paths).map(Paths::get).collect(Collectors.toList());
                 for (Path file : filePaths) consoleSession.load(file);
             }
         }
         // Start a live Console Session for the user to interact with Grakn
         else {
             try (ConsoleSession consoleSession = new ConsoleSession(serverAddress, keyspace, infer, printOut, printErr)) {
+                //Intercept Ctrl+C and gracefully terminate connection with server
+                Runtime.getRuntime().addShutdownHook(new Thread(consoleSession::close, "grakn-console-shutdown"));
                 consoleSession.run();
             }
         }
@@ -133,18 +129,23 @@ public class GraknConsole {
      * Invocation from bash script './grakn console'
      */
     public static void main(String[] args) {
+        String action = args.length > 1 ? args[1] : "";
+        if(action.equals("version")){
+            System.out.println(Version.VERSION);
+            System.exit(0);
+        }
+
         try {
             GraknConsole console = new GraknConsole(Arrays.copyOfRange(args, 1, args.length), System.out, System.err);
             console.run();
             System.exit(0);
-
         } catch (GraknConsoleException e) {
             System.err.println(e.getMessage());
             System.err.println("Cause: " + e.getCause().getClass().getName());
             System.err.println(e.getCause().getMessage());
             System.exit(1);
 
-        } catch (GraknException e) {
+        } catch (GraknClientException e) {
             // TODO: don't do if-checks. Use different catch-clauses by class
             if (e.getMessage().startsWith(Status.Code.UNAVAILABLE.name())) {
                 System.err.println(ErrorMessage.COULD_NOT_CONNECT.getMessage());

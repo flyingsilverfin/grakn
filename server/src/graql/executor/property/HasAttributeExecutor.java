@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -40,7 +40,6 @@ import graql.lang.statement.Variable;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static grakn.core.graql.gremlin.sets.EquivalentFragmentSets.neq;
 import static grakn.core.graql.gremlin.sets.EquivalentFragmentSets.rolePlayer;
@@ -92,7 +91,7 @@ public class HasAttributeExecutor implements PropertyExecutor.Insertable {
         Variable attributeVariable = property.attribute().var().asReturnedVar();
         Variable relationVariable = property.relation().var();
         Variable predicateVariable = new Variable();
-        Set<ValuePredicate> predicates = getValuePredicates(attributeVariable, property.attribute(), otherStatements, parent).collect(Collectors.toSet());
+        Set<ValuePredicate> predicates = getValuePredicates(attributeVariable, property.attribute(), otherStatements, parent);
 
         IsaProperty isaProp = property.attribute().getProperties(IsaProperty.class).findFirst().orElse(null);
         Statement typeVar = isaProp != null ? isaProp.type() : null;

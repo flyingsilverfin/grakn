@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,9 +18,13 @@
 
 package grakn.core.graql.gremlin.fragment;
 
-import grakn.core.graql.executor.property.ValueExecutor;
-import grakn.core.graql.executor.property.ValueExecutor.Operation.Comparison;
+import grakn.core.concept.Label;
+import grakn.core.concept.type.AttributeType;
+import grakn.core.graql.executor.property.value.ValueComparison;
+import grakn.core.graql.executor.property.value.ValueOperation;
+import grakn.core.server.kb.Schema;
 import grakn.core.server.session.TransactionOLTP;
+import grakn.core.server.statistics.KeyspaceStatistics;
 import graql.lang.property.VarProperty;
 import graql.lang.statement.Variable;
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal;
@@ -30,16 +34,18 @@ import org.apache.tinkerpop.gremlin.structure.Vertex;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 public class ValueFragment extends Fragment {
 
     private final VarProperty varProperty;
     private final Variable start;
-    private final ValueExecutor.Operation<?, ?> operation;
+    private final ValueOperation<?, ?> operation;
 
-    ValueFragment(@Nullable VarProperty varProperty, Variable start, ValueExecutor.Operation<?, ?> operation) {
+    ValueFragment(@Nullable VarProperty varProperty, Variable start, ValueOperation<?, ?> operation) {
         this.varProperty = varProperty;
         if (start == null) {
             throw new NullPointerException("Null start");
@@ -54,7 +60,7 @@ public class ValueFragment extends Fragment {
     /**
      * Operation between two values
      */
-    private ValueExecutor.Operation<?, ?> predicate() {
+    private ValueOperation<?, ?> predicate() {
         return operation;
     }
 
@@ -71,7 +77,7 @@ public class ValueFragment extends Fragment {
 
     @Override
     public GraphTraversal<Vertex, ? extends Element> applyTraversalInner(
-            GraphTraversal<Vertex, ? extends Element> traversal, TransactionOLTP graph, Collection<Variable> vars
+            GraphTraversal<Vertex, ? extends Element> traversal, TransactionOLTP tx, Collection<Variable> vars
     ) {
 
         return predicate().apply(traversal);
@@ -99,8 +105,8 @@ public class ValueFragment extends Fragment {
 
     @Override
     public Set<Variable> dependencies() {
-        if (operation instanceof Comparison.Variable) {
-            return Collections.singleton(((Comparison.Variable) operation).value().var());
+        if (operation instanceof ValueComparison.Variable) {
+            return Collections.singleton(((ValueComparison.Variable) operation).value().var());
         } else {
             return Collections.emptySet();
         }
@@ -128,5 +134,37 @@ public class ValueFragment extends Fragment {
         h *= 1000003;
         h ^= this.operation.hashCode();
         return h;
+    }
+
+    @Override
+    public double estimatedCostAsStartingPoint(TransactionOLTP tx) {
+        KeyspaceStatistics statistics = tx.session().keyspaceStatistics();
+
+        // compute the sum of all @has-attribute implicit relations
+        // and the sum of all attribute instances
+        // then compute some mean number of owners per attribute
+        // this is probably not the highest quality heuristic (plus it is a heavy operation), needs work
+
+        Label attributeLabel = Label.of("attribute");
+        long totalImplicitRels = 0;
+        long totalAttributes = 0;
+
+        AttributeType attributeType = tx.getSchemaConcept(attributeLabel).asAttributeType();
+        Stream<AttributeType> attributeSubs = attributeType.subs();
+
+        for (Iterator<AttributeType> it = attributeSubs.iterator(); it.hasNext(); ) {
+            AttributeType attrType = it.next();
+            Label attrLabel = attrType.label();
+            Label implicitAttrRelLabel = Schema.ImplicitType.HAS.getLabel(attrLabel);
+            totalAttributes += statistics.count(tx, attrLabel);
+            totalImplicitRels += statistics.count(tx, implicitAttrRelLabel);
+        }
+
+        if (totalAttributes == 0) {
+            // short circuiting can be done quickly if starting here
+            return 0.0;
+        } else {
+            return (double) totalImplicitRels / totalAttributes;
+        }
     }
 }

@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -30,7 +30,7 @@ import graql.lang.statement.Variable;
 import java.util.Set;
 
 /**
- * {@link AtomicBase} extension serving as base class for predicate implementations.
+ * AtomicBase extension serving as base class for predicate implementations.
  *
  * @param <T> the type of the predicate on a concept
  */
@@ -79,20 +79,16 @@ public abstract class Predicate<T> extends AtomicBase {
     public boolean subsumes(Atomic atom) { return this.isAlphaEquivalent(atom); }
 
     @Override
-    public final boolean equals(Object o) {
-        if (o == this) {
-            return true;
-        }
-        if (o instanceof Predicate) {
-            Predicate that = (Predicate) o;
-            return (this.getVarName().equals(that.getVarName()))
-                    && (this.getPredicate().equals(that.getPredicate()));
-        }
-        return false;
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || this.getClass() != obj.getClass()) return false;
+        Predicate that = (Predicate) obj;
+        return this.getVarName().equals(that.getVarName())
+                && this.getPredicate().equals(that.getPredicate());
     }
 
     @Override
-    public final int hashCode() {
+    public int hashCode() {
         int h = 1;
         h *= 1000003;
         h ^= this.getVarName().hashCode();

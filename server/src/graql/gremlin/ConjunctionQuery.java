@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -38,15 +38,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static grakn.core.common.util.CommonUtil.toImmutableSet;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
 /**
  * A query that does not contain any disjunctions, so it can be represented as a single gremlin traversal.
  * The {@code ConjunctionQuery} is passed a {@link Conjunction<Statement>}.
- * {@link EquivalentFragmentSet}s can be extracted from each {@link GraqlTraversal}.
- * The {@link EquivalentFragmentSet}s are sorted to produce a set of lists of {@link Fragment}s. Each list of fragments
+ * EquivalentFragmentSets can be extracted from each GraqlTraversal.
+ * The EquivalentFragmentSets are sorted to produce a set of lists of Fragments. Each list of fragments
  * describes a connected component in the query. Most queries are completely connected, so there will be only one
  * list of fragments in the set. If the query is disconnected (e.g. match $x isa movie, $y isa person), then there
  * will be multiple lists of fragments in the set.
@@ -70,7 +69,7 @@ class ConjunctionQuery {
         }
 
         ImmutableSet<EquivalentFragmentSet> fragmentSets =
-                statements.stream().flatMap(statements -> equivalentFragmentSetsRecursive(statements)).collect(toImmutableSet());
+                statements.stream().flatMap(statements -> equivalentFragmentSetsRecursive(statements)).collect(ImmutableSet.toImmutableSet());
 
         // Get all variable names mentioned in non-starting, non-comparing fragments (these should have vars bound elsewhere too)
         Set<Variable> names = fragmentSets.stream()
@@ -79,13 +78,13 @@ class ConjunctionQuery {
                                 && !(fragment instanceof ValueFragment)
                                 && !(fragment instanceof NeqFragment))
                 .flatMap(fragment -> fragment.vars().stream())
-                .collect(toImmutableSet());
+                .collect(ImmutableSet.toImmutableSet());
 
         // Get all dependencies fragments have on certain variables existing
         Set<Variable> dependencies = fragmentSets.stream()
                 .flatMap(EquivalentFragmentSet::stream)
                 .flatMap(fragment -> fragment.dependencies().stream())
-                .collect(toImmutableSet());
+                .collect(ImmutableSet.toImmutableSet());
 
         Set<Variable> validNames = Sets.difference(names, dependencies);
 

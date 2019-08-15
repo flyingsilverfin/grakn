@@ -1,6 +1,6 @@
 /*
  * GRAKN.AI - THE KNOWLEDGE GRAPH
- * Copyright (C) 2018 Grakn Labs Ltd
+ * Copyright (C) 2019 Grakn Labs Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
@@ -18,6 +18,7 @@
 
 package grakn.core.server.kb.concept;
 
+import grakn.core.concept.ConceptId;
 import grakn.core.concept.thing.Attribute;
 import grakn.core.concept.type.AttributeType;
 import grakn.core.server.exception.TransactionException;
@@ -125,7 +126,7 @@ public class AttributeTypeImpl<D> extends TypeImpl<AttributeType<D>, Attribute<D
             return vertex().tx().factory().buildAttribute(vertex, type, value);
         };
 
-        return putInstance(Schema.BaseType.ATTRIBUTE, () -> attribute(value), instanceBuilder, isInferred);
+        return putInstance(Schema.BaseType.ATTRIBUTE, () -> attributeWithLock(value), instanceBuilder, isInferred);
     }
 
     /**
@@ -165,9 +166,24 @@ public class AttributeTypeImpl<D> extends TypeImpl<AttributeType<D>, Attribute<D
     }
 
     @Override
+    @Nullable
     public Attribute<D> attribute(D value) {
         String index = Schema.generateAttributeIndex(label(), value.toString());
         return vertex().tx().getConcept(Schema.VertexProperty.INDEX, index);
+    }
+
+    /**
+     * This is only used when checking if attribute exists before trying to create a new one.
+     * We use a readLock as janusGraph commit does not seem to be atomic. Further investigation needed
+     */
+    private Attribute<D> attributeWithLock(D value) {
+        String index = Schema.generateAttributeIndex(label(), value.toString());
+        vertex().tx().session().graphLock().readLock().lock();
+        try {
+            return vertex().tx().getConcept(Schema.VertexProperty.INDEX, index);
+        } finally {
+            vertex().tx().session().graphLock().readLock().unlock();
+        }
     }
 
     /**
