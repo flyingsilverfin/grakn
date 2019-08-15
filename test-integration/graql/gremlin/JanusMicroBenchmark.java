@@ -243,7 +243,7 @@ public class JanusMicroBenchmark {
         List<Long> durations1 = new LinkedList<>();
         List<Long> durations2 = new LinkedList<>();
         List<Long> durations3 = new LinkedList<>();
-        int trails = 30;
+        int trails = 10;
 
         System.out.println("Initialising and populating keyspace...");
         SessionImpl session1 = newSession();
@@ -307,7 +307,7 @@ public class JanusMicroBenchmark {
     public void testBatchIdVersusBatchPropertyLookup() {
         List<Long> durations1 = new LinkedList<>();
         List<Long> durations2 = new LinkedList<>();
-        int trails = 30;
+        int trails = 10;
 
         System.out.println("Initialising and populating keyspace...");
         SessionImpl session1 = newSession();
@@ -405,7 +405,7 @@ public class JanusMicroBenchmark {
     public void testSequenceOfIdVersusPropertyLookup() {
         List<Long> durations1 = new LinkedList<>();
         List<Long> durations2 = new LinkedList<>();
-        int trails = 20;
+        int trails = 10;
 
         System.out.println("Initialising and populating keyspace...");
         SessionImpl session1 = newSession();
@@ -463,7 +463,7 @@ public class JanusMicroBenchmark {
     public void testLabelVersusProperty() {
         List<Long> durations1 = new LinkedList<>();
         List<Long> durations2 = new LinkedList<>();
-        int trails = 30;
+        int trails = 10;
 
         System.out.println("Initialising and populating keyspace...");
         SessionImpl session1 = newSession();
@@ -574,7 +574,7 @@ public class JanusMicroBenchmark {
     public void testJanusDeduplicateVersusServerDeduplicate() {
         List<Long> durations1 = new LinkedList<>();
         List<Long> durations2 = new LinkedList<>();
-        int trails = 30;
+        int trails = 10;
 
         System.out.println("Initialising and populating keyspace...");
         SessionImpl session1 = newSession();
@@ -670,6 +670,68 @@ public class JanusMicroBenchmark {
 
                 Long endTime = System.currentTimeMillis();
                 System.out.println("Retrieve maps using single level BFS style gremlin query: " + (endTime - startTime));
+                durations2.add(endTime - startTime);
+            }
+            confuse(session2);
+        }
+
+        double meanDuration1 = mean(durations1);
+        double stddev1 = stddev(durations1);
+        double meanDuration2 = mean(durations2);
+        double stddev2 = stddev(durations2);
+
+        System.out.println("Mean, stddev time Retrieve maps using DFS style gremlin query: " + meanDuration1 + ", " + stddev1);
+        System.out.println("Mean, stddev time Retrieve maps using DFS style gremlin query: " + meanDuration2 + ", " + stddev2);
+    }
+
+
+
+    @Test
+    public void testPropertyWithin() {
+        List<Long> durations1 = new LinkedList<>();
+        List<Long> durations2 = new LinkedList<>();
+        int trails = 10;
+
+        System.out.println("Initialising and populating keyspace...");
+        SessionImpl session1 = newSession();
+        populateKeypsace(session1, 3000, 5, 2);
+        System.out.println("Finished creating keysace...");
+
+        for (int i = 0; i < trails; i++) {
+            try (TransactionOLTP tx = session1.transaction().read()) {
+                Long startTime = System.currentTimeMillis();
+
+                List<Vertex> vertices = tx.getTinkerTraversal().V().as("start")
+                        .outE(RELATES.name()).inV().out(SUB.name()).has(SCHEMA_LABEL.name(), P.within("person"))
+                        .toList();
+
+                Long endTime = System.currentTimeMillis();
+                System.out.println("Retrieve vertices using within(1 string): " + (endTime - startTime));
+                durations1.add(endTime - startTime);
+            }
+            confuse(session1);
+        }
+
+        System.out.println("Initialising and populating keyspace2...");
+        SessionImpl session2 = newSession();
+        populateKeypsace(session2, 3000, 5, 2);
+        System.out.println("Finished creating keysace...");
+
+        List<String> withinValues = new ArrayList<>();
+        withinValues.add("person");
+        for (int i = 0; i < 999; i++) {
+            withinValues.add("someValue" + i);
+        }
+        for (int i = 0; i < trails; i++) {
+            try (TransactionOLTP tx = session2.transaction().read()) {
+                Long startTime = System.currentTimeMillis();
+
+                List<Vertex> vertices = tx.getTinkerTraversal().V().as("start")
+                        .outE(RELATES.name()).inV().out(SUB.name()).has(SCHEMA_LABEL.name(), P.within(withinValues))
+                        .toList();
+
+                Long endTime = System.currentTimeMillis();
+                System.out.println("Retrieve vertices using within(1k strings): " + (endTime - startTime));
                 durations2.add(endTime - startTime);
             }
             confuse(session2);

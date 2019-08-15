@@ -53,7 +53,6 @@ java_test(
     size = "small"
 )
 
-load("@graknlabs_build_tools//checkstyle:rules.bzl", "checkstyle_test")
 
 java_test(
     name = "janus-micro-benchmark",
@@ -79,7 +78,7 @@ checkstyle_test(
     name = "checkstyle",
     targets = [
         ":graql-traversal-test",
-        ":conjunction-query-test"
+        ":conjunction-query-test",
         ":janus-micro-benchmark",
     ],
 )
