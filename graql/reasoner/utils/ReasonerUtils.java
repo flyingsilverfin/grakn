@@ -317,11 +317,21 @@ public class ReasonerUtils {
             if (mapA.size() != mapB.size()) {
                 return false;
             } else {
-                return mapA.keySet().stream().allMatch(k -> mapA.get(k).equals(mapB.get(k)));
+                boolean allMatch = true;
+//                for (Equivalence.Wrapper<B> wrappedAtom : mapA.keySet()) {
+//                    for (Equivalence.Wrapper<B> otherWrappedAtom: mapB.keySet()) {
+//                        boolean equals = otherWrappedAtom.equals(wrappedAtom);
+//                        if (equals) {
+//
+//                        } else {
+//                            allMatch = false;
+//                        }
+//                    }
+//                }
+
+                boolean matches = mapA.keySet().stream().allMatch(k -> mapA.get(k).equals(mapB.get(k)));
+                return matches;
             }
         }
     }
-
-
 }
-

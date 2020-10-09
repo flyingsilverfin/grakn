@@ -341,12 +341,24 @@ public class QueryIT {
     public void testAlphaEquivalence_nonMatchingTypes() {
         try (TestTransaction tx = ((TestTransaction)geoSession.transaction(Transaction.Type.WRITE))) {
             ReasonerQueryFactory reasonerQueryFactory = tx.reasonerQueryFactory();
+            reasonerQueryFactory.disableInferTypes();
             String polandId = getConcept(tx, "name", "Poland").id().getValue();
             String patternString = "{ $y id " + polandId + "; $y isa country; (geo-entity: $y1, entity-location: $y) isa is-located-in; };";
             String patternString2 = "{ $x1 id " + polandId + "; $y isa country; (geo-entity: $x1, entity-location: $x2) isa is-located-in; };";
             String patternString3 = "{ $y id " + polandId + "; $x isa city; (geo-entity: $x, entity-location: $y) isa is-located-in; $y isa country; };";
             String patternString4 = "{ $x isa city; (entity-location: $y1, geo-entity: $x) isa is-located-in; };";
             String patternString5 = "{ (geo-entity: $y1, entity-location: $y2) isa is-located-in; };";
+
+            /*
+            TODO: are these supposed to be alpha equivalent? Is reasoner meant to be able to handle alpha equivalence here?
+             */
+            String test1 = "{ (entity-location: $y, geo-entity: $x) isa is-located-in; (entity-location: $x, geo-entity: $y, geo-entity: $x) isa is-located-in; };";
+            String test2 = "{ (entity-location: $y, geo-entity: $x) isa is-located-in; (entity-location: $y, geo-entity: $x, geo-entity: $y) isa is-located-in; };";
+
+            ReasonerQueryImpl q1 = reasonerQueryFactory.create(conjunction(test1));
+            ReasonerQueryImpl q2 = reasonerQueryFactory.create(conjunction(test2));
+
+            System.out.println(q1.equals(q2));
 
             ReasonerQueryImpl query = reasonerQueryFactory.create(conjunction(patternString));
             ReasonerQueryImpl query2 = reasonerQueryFactory.create(conjunction(patternString2));

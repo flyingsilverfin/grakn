@@ -83,7 +83,7 @@ public abstract class AnswerPropagatorState<Q extends ResolvableQuery> extends R
     }
 
     /**
-     * @return query corresponding to this query state
+     * @return query corresponding to this query staValidateGlobalRuleste
      */
     public Q getQuery(){ return query;}
 
