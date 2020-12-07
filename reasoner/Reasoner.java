@@ -41,16 +41,18 @@ public class Reasoner {
 
     private final TraversalEngine traversalEng;
     private final ConceptManager conceptMgr;
+    private final Implications implications;
     private final TypeHinter typeHinter;
     private final ResolverRegistry resolverRegistry;
     private final ReasonerCache cache;
 
     public Reasoner(ConceptManager conceptMgr, TraversalEngine traversalEng, ReasonerCache cache) {
-        this.traversalEng = traversalEng;
         this.conceptMgr = conceptMgr;
-        this.resolverRegistry = new ResolverRegistry(ExecutorService.eventLoopGroup());
-        this.typeHinter = new TypeHinter(traversalEng, cache);
+        this.traversalEng = traversalEng;
         this.cache = cache;
+        this.implications = new Implications(conceptMgr, cache);
+        this.typeHinter = new TypeHinter(traversalEng, cache);
+        this.resolverRegistry = new ResolverRegistry(ExecutorService.eventLoopGroup());
     }
 
     public ResourceIterator<ConceptMap> execute(Disjunction disjunction) {

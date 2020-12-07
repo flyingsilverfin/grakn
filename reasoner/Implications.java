@@ -13,34 +13,20 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
  */
 
 package grakn.core.reasoner;
 
 import grakn.core.common.cache.CommonCache;
-import grakn.core.common.parameters.Label;
-import grakn.core.pattern.Conjunction;
-import graql.lang.pattern.variable.Reference;
+import grakn.core.concept.ConceptManager;
 
-import java.util.Map;
-import java.util.Set;
-
-public class ReasonerCache {
-
-    private final CommonCache<Conjunction, Map<Reference, Set<Label>>> typeHinterCache;
+public class Implications {
+    private ConceptManager conceptMgr;
     private final CommonCache<String, Implication> implicationCache;
 
-    public ReasonerCache() {
-        typeHinterCache = new CommonCache<>();
-        implicationCache = new CommonCache<>();
+    public Implications(ConceptManager conceptMgr, ReasonerCache cache) {
+        this.conceptMgr = conceptMgr;
+        this.implicationCache = cache.implicationCache();
     }
 
-    public CommonCache<Conjunction, Map<Reference, Set<Label>>> typeHinter() {
-        return typeHinterCache;
-    }
-
-    public CommonCache<String, Implication> implicationCache() {
-        return implicationCache;
-    }
 }
