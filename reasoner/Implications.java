@@ -29,4 +29,20 @@ public class Implications {
         this.implicationCache = cache.implicationCache();
     }
 
+    public Implication getImplication(String name) {
+        assert conceptMgr.getRule(name) != null;
+        Implication implication = implicationCache.get(name, (label) -> new Implication(conceptMgr.getRule(label)));
+        return implication;
+    }
+
+    public boolean containsPositiveCycle() {
+        // TODO useful for optimising reasoner reiteration
+        return false;
+    }
+
+    public boolean withinCycleWithNegation(Implication implication) {
+        // TODO for rule validation
+        return false;
+    }
+
 }

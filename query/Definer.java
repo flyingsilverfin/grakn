@@ -251,5 +251,6 @@ public class Definer {
 
     private void define(graql.lang.pattern.schema.Rule rule) {
         conceptMgr.putRule(rule.label(), rule.when(), rule.then());
+        // TODO perform cycle detection using Implications
     }
 }
