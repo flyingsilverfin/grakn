@@ -47,6 +47,7 @@ host_compatible_java_test(
 
 host_compatible_java_test(
     name = "test-traversal",
+    size = "large",
     srcs = ["TraversalTest.java"],
     test_class = "grakn.core.test.integration.traversal.TraversalTest",
     native_libraries_deps = [
