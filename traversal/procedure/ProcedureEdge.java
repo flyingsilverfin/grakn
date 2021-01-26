@@ -380,7 +380,7 @@ public abstract class ProcedureEdge<
 
                 static class Forward extends Sub {
 
-                    private Forward(ProcedureVertex.Type from, ProcedureVertex.Type to, int order, boolean isTransitive) {
+                    Forward(ProcedureVertex.Type from, ProcedureVertex.Type to, int order, boolean isTransitive) {
                         super(from, to, order, FORWARD, isTransitive);
                     }
 
@@ -400,7 +400,7 @@ public abstract class ProcedureEdge<
 
                 static class Backward extends Sub {
 
-                    private Backward(ProcedureVertex.Type from, ProcedureVertex.Type to, int order, boolean isTransitive) {
+                    Backward(ProcedureVertex.Type from, ProcedureVertex.Type to, int order, boolean isTransitive) {
                         super(from, to, order, BACKWARD, isTransitive);
                     }
 

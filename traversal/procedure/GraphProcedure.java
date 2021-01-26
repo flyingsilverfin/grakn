@@ -268,6 +268,22 @@ public class GraphProcedure implements Procedure {
             return thing;
         }
 
+        public ProcedureEdge.Native.Type.Sub.Forward forwardSub(int order, ProcedureVertex.Type child,
+                                                                ProcedureVertex.Type parent, boolean isTransitive) {
+            ProcedureEdge.Native.Type.Sub.Forward edge =
+                    new ProcedureEdge.Native.Type.Sub.Forward(child, parent, order, isTransitive);
+            registerEdge(edge);
+            return edge;
+        }
+
+        public ProcedureEdge.Native.Type.Sub.Backward backwardSub(int order, ProcedureVertex.Type parent,
+                                                                ProcedureVertex.Type child, boolean isTransitive) {
+            ProcedureEdge.Native.Type.Sub.Backward edge =
+                    new ProcedureEdge.Native.Type.Sub.Backward(parent, child, order, isTransitive);
+            registerEdge(edge);
+            return edge;
+        }
+
         public ProcedureEdge.Native.Isa.Forward forwardIsa(
                 int order, ProcedureVertex.Thing thing, ProcedureVertex.Type type, boolean isTransitive) {
             ProcedureEdge.Native.Isa.Forward edge =
