@@ -30,6 +30,7 @@ import grakn.core.logic.resolvable.Retrievable;
 import grakn.core.pattern.Conjunction;
 import grakn.core.pattern.equivalence.AlphaEquivalence;
 import grakn.core.reasoner.resolution.framework.ResolutionAnswer;
+import grakn.core.reasoner.resolution.framework.Resolver;
 import grakn.core.reasoner.resolution.resolver.ConcludableResolver;
 import grakn.core.reasoner.resolution.resolver.ResolvableResolver;
 import grakn.core.reasoner.resolution.resolver.RetrievableResolver;
@@ -84,14 +85,14 @@ public class ResolverRegistry {
         } else throw GraknException.of(ILLEGAL_STATE);
     }
 
-    public Actor<RuleResolver> registerRule(Rule rule) {
+    public Actor<? extends Resolver<?>> registerRule(Rule rule) {
         LOG.debug("Register retrieval for rule actor: '{}'", rule);
         return rules.computeIfAbsent(rule, (r) -> Actor.create(elg, self -> new RuleResolver(
                 self, r, this, traversalEngine, conceptMgr, logicMgr, planner,
                 explanations)));
     }
 
-    public Actor<RootResolver> createRoot(Conjunction pattern, Consumer<ResolutionAnswer> onAnswer, Consumer<Integer> onExhausted) {
+    public Actor<? extends Resolver<?>> createRoot(Conjunction pattern, Consumer<ResolutionAnswer> onAnswer, Consumer<Integer> onExhausted) {
         LOG.debug("Creating Conjunction Actor for pattern: '{}'", pattern);
         return Actor.create(
                 elg, self -> new RootResolver(
@@ -129,7 +130,7 @@ public class ResolverRegistry {
 
 
     public static class AlphaEquivalentResolver {
-        private final Actor<? extends ResolvableResolver<?>> resolver;
+        private final Actor<? extends Resolver<?>> resolver;
         private final Map<Reference.Name, Reference.Name> mapping;
 
         private AlphaEquivalentResolver(Actor<? extends ResolvableResolver<?>> resolver, Map<Reference.Name, Reference.Name> mapping) {
@@ -153,7 +154,7 @@ public class ResolverRegistry {
             return mapping;
         }
 
-        public Actor<? extends ResolvableResolver<?>> resolver() {
+        public Actor<? extends Resolver<?>> resolver() {
             return resolver;
         }
     }
