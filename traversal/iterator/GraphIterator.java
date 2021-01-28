@@ -207,8 +207,8 @@ public class GraphIterator extends AbstractResourceIterator<VertexMap> {
                 Vertex<?, ?> fromVertex = answer.get(edge.from().id());
                 newIter = branch(fromVertex, edge);
                 if (!newIter.hasNext()) {
-                    //assert !edge.from().ins().isEmpty();
-                    computeNextSeekPos = edge.from().branchEdge().order();
+                    if (edge.from().ins().isEmpty()) computeNextSeekPos = 0;
+                    else computeNextSeekPos = edge.from().branchEdge().order();
                 }
             } else {
                 return false;
