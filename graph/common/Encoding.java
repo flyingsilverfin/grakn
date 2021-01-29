@@ -18,7 +18,8 @@
 
 package grakn.core.graph.common;
 
-import grakn.core.common.collection.Bytes;
+import grakn.core.common.bytes.ByteArray;
+import grakn.core.common.bytes.Bytes;
 import grakn.core.common.exception.GraknException;
 import grakn.core.common.parameters.Label;
 import graql.lang.common.GraqlArg;
@@ -35,8 +36,9 @@ import static grakn.common.collection.Collections.map;
 import static grakn.common.collection.Collections.pair;
 import static grakn.common.collection.Collections.set;
 import static grakn.common.util.Objects.className;
-import static grakn.core.common.collection.Bytes.signedByte;
-import static grakn.core.common.collection.Bytes.unsignedByte;
+import static grakn.core.common.bytes.ByteArray.raw;
+import static grakn.core.common.bytes.Bytes.signedByte;
+import static grakn.core.common.bytes.Bytes.unsignedByte;
 import static grakn.core.common.exception.ErrorMessage.Internal.ILLEGAL_CAST;
 import static grakn.core.common.exception.ErrorMessage.Internal.UNRECOGNISED_VALUE;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -170,11 +172,13 @@ public class Encoding {
         private final byte key;
         private final PrefixType type;
         private final byte[] bytes;
+        private final ByteArray byteArray;
 
         Prefix(int key, PrefixType type) {
             this.key = unsignedByte(key);
             this.type = type;
             this.bytes = new byte[]{this.key};
+            this.byteArray = raw(this.bytes);
         }
 
         public static Prefix of(byte key) {
@@ -190,6 +194,10 @@ public class Encoding {
 
         public byte[] bytes() {
             return bytes;
+        }
+
+        public ByteArray byteArray() {
+            return byteArray;
         }
 
         public PrefixType type() {
@@ -254,6 +262,7 @@ public class Encoding {
         private final byte key;
         private final boolean isOptimisation;
         private final byte[] bytes;
+        private final ByteArray byteArray;
 
         Infix(int key) {
             this(key, false);
@@ -263,6 +272,7 @@ public class Encoding {
             this.key = signedByte(key);
             this.isOptimisation = isOptimisation;
             this.bytes = new byte[]{this.key};
+            this.byteArray = raw(this.bytes);
         }
 
         public static Infix of(byte key) {
@@ -278,6 +288,10 @@ public class Encoding {
 
         public byte[] bytes() {
             return bytes;
+        }
+
+        public ByteArray byteArray() {
+            return byteArray;
         }
 
         public boolean isOptimisation() {
@@ -349,11 +363,13 @@ public class Encoding {
 
         private final GraqlArg.ValueType graqlValueType;
         private final byte[] bytes;
+        private final ByteArray byteArray;
 
         ValueType(int key, Class<?> valueClass, boolean isWritable, boolean isKeyable,
                   @Nullable GraqlArg.ValueType graqlValueType) {
             this.key = unsignedByte(key);
             this.bytes = new byte[]{this.key};
+            this.byteArray = raw(bytes);
             this.valueClass = valueClass;
             this.isWritable = isWritable;
             this.isKeyable = isKeyable;
@@ -383,6 +399,10 @@ public class Encoding {
 
         public byte[] bytes() {
             return bytes;
+        }
+
+        public ByteArray byteArray() {
+            return byteArray;
         }
 
         public Class<?> valueClass() {
@@ -746,7 +766,13 @@ public class Encoding {
                 return prefix;
             }
 
-            public byte[] bytes() { return prefix.bytes(); }
+            public byte[] bytes() {
+                return prefix.bytes();
+            }
+
+            public ByteArray byteArray() {
+                return prefix.byteArray();
+            }
         }
 
         /**
@@ -760,22 +786,30 @@ public class Encoding {
             public static final int LENGTH = 1;
             private final byte key;
             private final byte[] bytes;
+            private final ByteArray byteArray;
 
             Infix(int key) {
                 this.key = unsignedByte(key);
                 bytes = new byte[]{this.key};
+                byteArray = raw(bytes);
             }
 
-            public static Infix of(byte[] key) {
-                if (key.length == 1) {
+            public static Infix of(ByteArray byteArray) {
+                if (byteArray.length() == 1) {
                     for (Infix i : Infix.values()) {
-                        if (i.key == key[0]) return i;
+                        if (i.key == byteArray.get(0)) return i;
                     }
                 }
                 throw GraknException.of(UNRECOGNISED_VALUE);
             }
 
-            public byte[] bytes() { return bytes; }
+            public byte[] bytes() {
+                return bytes;
+            }
+
+            public ByteArray byteArray() {
+                return byteArray;
+            }
         }
     }
 
@@ -790,16 +824,18 @@ public class Encoding {
 
             private final byte key;
             private final byte[] bytes;
+            private final ByteArray byteArray;
 
             JobType(int key) {
                 this.key = unsignedByte(key);
                 this.bytes = new byte[]{this.key};
+                this.byteArray = raw(bytes);
             }
 
-            public static JobType of(byte[] key) {
-                if (key.length == 1) {
+            public static JobType of(ByteArray byteArray) {
+                if (byteArray.length() == 1) {
                     for (JobType i : JobType.values()) {
-                        if (i.key == key[0]) return i;
+                        if (i.key == byteArray.get(0)) return i;
                     }
                 }
                 throw GraknException.of(UNRECOGNISED_VALUE);
@@ -811,6 +847,10 @@ public class Encoding {
 
             public byte[] bytes() {
                 return bytes;
+            }
+
+            public ByteArray byteArray() {
+                return byteArray;
             }
         }
 
@@ -823,16 +863,18 @@ public class Encoding {
 
             private final byte key;
             private final byte[] bytes;
+            private final ByteArray byteArray;
 
             JobOperation(int key) {
                 this.key = unsignedByte(key);
                 this.bytes = new byte[]{this.key};
+                this.byteArray = raw(bytes);
             }
 
-            public static JobOperation of(byte[] key) {
-                if (key.length == 1) {
+            public static JobOperation of(ByteArray byteArray) {
+                if (byteArray.length() == 1) {
                     for (JobOperation i : JobOperation.values()) {
-                        if (i.key == key[0]) return i;
+                        if (i.key == byteArray.get(0)) return i;
                     }
                 }
                 throw GraknException.of(UNRECOGNISED_VALUE);
@@ -844,6 +886,10 @@ public class Encoding {
 
             public byte[] bytes() {
                 return bytes;
+            }
+
+            public ByteArray byteArray() {
+                return byteArray;
             }
         }
 
@@ -858,10 +904,12 @@ public class Encoding {
 
             private final byte key;
             private final byte[] bytes;
+            private final ByteArray byteArray;
 
             Infix(int key) {
                 this.key = unsignedByte(key);
                 this.bytes = new byte[]{this.key};
+                this.byteArray = raw(bytes);
             }
 
             public byte key() {
@@ -870,6 +918,10 @@ public class Encoding {
 
             public byte[] bytes() {
                 return bytes;
+            }
+
+            public ByteArray byteArray() {
+                return byteArray;
             }
         }
     }

@@ -17,6 +17,7 @@
 
 package grakn.core.graph.structure.impl;
 
+import grakn.core.common.bytes.ByteArray;
 import grakn.core.common.iterator.ResourceIterator;
 import grakn.core.common.parameters.Label;
 import grakn.core.graph.SchemaGraph;
@@ -40,7 +41,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static grakn.core.common.collection.Bytes.join;
+import static grakn.core.common.bytes.ByteArray.join;
+import static grakn.core.common.bytes.ByteArray.raw;
 import static grakn.core.common.iterator.Iterators.iterate;
 import static grakn.core.common.iterator.Iterators.link;
 import static grakn.core.graph.common.Encoding.Property.LABEL;
@@ -217,8 +219,8 @@ public abstract class RuleStructureImpl implements RuleStructure {
         }
 
         private void commitVertex() {
-            graph.storage().put(iid.bytes());
-            graph.storage().put(IndexIID.Rule.of(label).bytes(), iid.bytes());
+            graph.storage().put(iid.byteArray());
+            graph.storage().put(IndexIID.Rule.of(label).byteArray(), iid.byteArray());
         }
 
         private void commitProperties() {
@@ -228,15 +230,15 @@ public abstract class RuleStructureImpl implements RuleStructure {
         }
 
         private void commitPropertyLabel() {
-            graph.storage().put(join(iid.bytes(), LABEL.infix().bytes()), label.getBytes());
+            graph.storage().put(join(iid.byteArray(), LABEL.infix().byteArray()), raw(label.getBytes()));
         }
 
         private void commitWhen() {
-            graph.storage().put(join(iid.bytes(), WHEN.infix().bytes()), when().toString().getBytes());
+            graph.storage().put(join(iid.byteArray(), WHEN.infix().byteArray()), raw(when().toString().getBytes()));
         }
 
         private void commitThen() {
-            graph.storage().put(join(iid.bytes(), THEN.infix().bytes()), then().toString().getBytes());
+            graph.storage().put(join(iid.byteArray(), THEN.infix().byteArray()), raw(then().toString().getBytes()));
         }
 
         private void indexReferences() {
@@ -249,9 +251,9 @@ public abstract class RuleStructureImpl implements RuleStructure {
 
         public Persisted(SchemaGraph graph, StructureIID.Rule iid) {
             super(graph, iid,
-                  new String(graph.storage().get(join(iid.bytes(), LABEL.infix().bytes()))),
-                  Graql.parsePattern(new String(graph.storage().get(join(iid.bytes(), WHEN.infix().bytes())))).asConjunction(),
-                  Graql.parseVariable(new String(graph.storage().get(join(iid.bytes(), THEN.infix().bytes())))).asThing());
+                  new String(graph.storage().get(join(iid.byteArray(), LABEL.infix().byteArray())).bytes()),
+                  Graql.parsePattern(new String(graph.storage().get(join(iid.byteArray(), WHEN.infix().byteArray())).bytes())).asConjunction(),
+                  Graql.parseVariable(new String(graph.storage().get(join(iid.byteArray(), THEN.infix().byteArray())).bytes())).asThing());
         }
 
         @Override
@@ -272,9 +274,9 @@ public abstract class RuleStructureImpl implements RuleStructure {
         @Override
         public void label(String label) {
             graph.rules().update(this, this.label, label);
-            graph.storage().put(join(iid.bytes(), LABEL.infix().bytes()), label.getBytes());
-            graph.storage().delete(IndexIID.Rule.of(this.label).bytes());
-            graph.storage().put(IndexIID.Rule.of(label).bytes(), iid.bytes());
+            graph.storage().put(join(iid.byteArray(), LABEL.infix().byteArray()), raw(label.getBytes()));
+            graph.storage().delete(IndexIID.Rule.of(this.label).byteArray());
+            graph.storage().put(IndexIID.Rule.of(label).byteArray(), iid.byteArray());
             this.label = label;
         }
 
@@ -288,8 +290,8 @@ public abstract class RuleStructureImpl implements RuleStructure {
         }
 
         private void deleteVertexFromStorage() {
-            graph.storage().delete(IndexIID.Rule.of(label).bytes());
-            ResourceIterator<byte[]> keys = graph.storage().iterate(iid.bytes(), (iid, value) -> iid);
+            graph.storage().delete(IndexIID.Rule.of(label).byteArray());
+            ResourceIterator<ByteArray> keys = graph.storage().iterate(iid.byteArray(), (iid, value) -> iid);
             while (keys.hasNext()) graph.storage().delete(keys.next());
         }
 

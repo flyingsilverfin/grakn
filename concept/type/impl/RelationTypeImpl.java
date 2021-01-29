@@ -18,7 +18,7 @@
 
 package grakn.core.concept.type.impl;
 
-import grakn.core.common.collection.Streams;
+import grakn.core.common.utils.Streams;
 import grakn.core.common.exception.GraknException;
 import grakn.core.common.iterator.ResourceIterator;
 import grakn.core.concept.thing.Relation;

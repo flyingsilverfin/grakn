@@ -18,6 +18,7 @@
 
 package grakn.core.concept;
 
+import grakn.core.common.bytes.ByteArray;
 import grakn.core.common.exception.ErrorMessage;
 import grakn.core.common.exception.GraknException;
 import grakn.core.common.iterator.ResourceIterator;
@@ -47,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static grakn.core.common.bytes.ByteArray.raw;
 import static grakn.core.common.exception.ErrorMessage.Internal.ILLEGAL_STATE;
 import static grakn.core.common.exception.ErrorMessage.Transaction.UNSUPPORTED_OPERATION;
 import static grakn.core.common.exception.ErrorMessage.TypeWrite.ATTRIBUTE_VALUE_TYPE_MISSING;
@@ -167,7 +169,7 @@ public final class ConceptManager {
     }
 
     public Thing getThing(byte[] iid) {
-        ThingVertex thingVertex = graphMgr.data().get(VertexIID.Thing.of(iid));
+        ThingVertex thingVertex = graphMgr.data().get(VertexIID.Thing.of(raw(iid)));
         if (thingVertex != null) return ThingImpl.of(thingVertex);
         else return null;
     }

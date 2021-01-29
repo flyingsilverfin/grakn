@@ -34,7 +34,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static grakn.core.common.collection.Bytes.bytesToUUID;
+import static grakn.core.common.bytes.Bytes.bytesToUUID;
 import static grakn.core.common.exception.ErrorMessage.Database.DATABASE_DELETED;
 import static grakn.core.common.exception.ErrorMessage.Database.DATABASE_EXISTS;
 import static grakn.core.common.exception.ErrorMessage.Database.DATABASE_NOT_FOUND;

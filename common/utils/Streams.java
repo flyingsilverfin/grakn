@@ -16,7 +16,7 @@
  *
  */
 
-package grakn.core.common.collection;
+package grakn.core.common.utils;
 
 import java.util.Iterator;
 import java.util.stream.Stream;

@@ -119,8 +119,8 @@ public abstract class TypeEdgeImpl implements TypeEdge {
                 from.outs().remove(this);
                 to.ins().remove(this);
                 if (from instanceof Persisted && to instanceof Persisted) {
-                    graph.storage().delete(outIID().bytes());
-                    graph.storage().delete(inIID().bytes());
+                    graph.storage().delete(outIID().byteArray());
+                    graph.storage().delete(inIID().byteArray());
                 }
             }
         }
@@ -137,11 +137,11 @@ public abstract class TypeEdgeImpl implements TypeEdge {
         public void commit() {
             if (committed.compareAndSet(false, true)) {
                 if (encoding.out() != null) {
-                    if (overridden != null) graph.storage().put(outIID().bytes(), overridden.iid().bytes());
-                    else graph.storage().put(outIID().bytes());
+                    if (overridden != null) graph.storage().put(outIID().byteArray(), overridden.iid().byteArray());
+                    else graph.storage().put(outIID().byteArray());
                 }
                 if (encoding.in() != null) {
-                    graph.storage().put(inIID().bytes());
+                    graph.storage().put(inIID().byteArray());
                 }
             }
         }
@@ -292,7 +292,7 @@ public abstract class TypeEdgeImpl implements TypeEdge {
         public void overridden(TypeVertex overridden) {
             this.overridden = overridden;
             overriddenIID = overridden.iid();
-            graph.storage().put(outIID.bytes(), overriddenIID.bytes());
+            graph.storage().put(outIID.byteArray(), overriddenIID.byteArray());
         }
 
         /**
@@ -309,8 +309,8 @@ public abstract class TypeEdgeImpl implements TypeEdge {
             if (deleted.compareAndSet(false, true)) {
                 from().outs().remove(this);
                 to().ins().remove(this);
-                graph.storage().delete(this.outIID.bytes());
-                graph.storage().delete(this.inIID.bytes());
+                graph.storage().delete(this.outIID.byteArray());
+                graph.storage().delete(this.inIID.byteArray());
             }
         }
 

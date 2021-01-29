@@ -97,7 +97,7 @@ public class Reasoner {
     private ResourceIterator<Producer<ConceptMap>> producers(Conjunction conjunction,
                                                              List<Identifier.Variable.Name> filter,
                                                              Context.Query context) {
-        if (!isInfer(context)) LOG.warn("Reasoning is disabled in write transactions");
+        if (!isInfer(context)) LOG.debug("Reasoning is disabled in write transactions");
 
         List<Producer<ConceptMap>> producers = new ArrayList<>();
         Conjunction conj = logicMgr.typeResolver().resolve(conjunction);
@@ -133,7 +133,7 @@ public class Reasoner {
 
     private ResourceIterator<ConceptMap> iterator(Conjunction conjunction, List<Identifier.Variable.Name> filter,
                                                   Context.Query context) {
-        if (!isInfer(context)) LOG.warn("Reasoning is disabled in write transactions");
+        if (!isInfer(context)) LOG.debug("Reasoning is disabled in write transactions");
 
         ResourceIterator<ConceptMap> answers;
         Conjunction conj = logicMgr.typeResolver().resolve(conjunction);

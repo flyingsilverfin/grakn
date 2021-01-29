@@ -18,27 +18,29 @@
 
 package grakn.core.rocks;
 
+import grakn.core.common.bytes.ByteArray;
 import grakn.core.common.iterator.AbstractResourceIterator;
 
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
-import static grakn.core.common.collection.Bytes.bytesHavePrefix;
+import static grakn.core.common.bytes.ByteArray.raw;
+import static grakn.core.common.bytes.Bytes.bytesHavePrefix;
 
 public final class RocksIterator<T> extends AbstractResourceIterator<T> implements AutoCloseable {
 
-    private final byte[] prefix;
+    private final ByteArray prefix;
     private final RocksStorage storage;
     private final AtomicBoolean isOpen;
-    private final BiFunction<byte[], byte[], T> constructor;
+    private final BiFunction<ByteArray, ByteArray, T> constructor;
     private org.rocksdb.RocksIterator internalRocksIterator;
     private State state;
     private T next;
 
     private enum State {INIT, EMPTY, FETCHED, COMPLETED}
 
-    RocksIterator(RocksStorage storage, byte[] prefix, BiFunction<byte[], byte[], T> constructor) {
+    RocksIterator(RocksStorage storage, ByteArray prefix, BiFunction<ByteArray, ByteArray, T> constructor) {
         this.storage = storage;
         this.prefix = prefix;
         this.constructor = constructor;
@@ -49,18 +51,18 @@ public final class RocksIterator<T> extends AbstractResourceIterator<T> implemen
 
     private void initalise() {
         this.internalRocksIterator = storage.getInternalRocksIterator();
-        this.internalRocksIterator.seek(prefix);
+        this.internalRocksIterator.seek(prefix.bytes());
     }
 
     private boolean fetchAndCheck() {
         byte[] key;
-        if (!internalRocksIterator.isValid() || !bytesHavePrefix(key = internalRocksIterator.key(), prefix)) {
+        if (!internalRocksIterator.isValid() || !bytesHavePrefix(key = internalRocksIterator.key(), prefix.bytes())) {
             state = State.COMPLETED;
             recycle();
             return false;
         }
 
-        next = constructor.apply(key, internalRocksIterator.value());
+        next = constructor.apply(raw(key), raw(internalRocksIterator.value()));
         internalRocksIterator.next();
         state = State.FETCHED;
         return true;

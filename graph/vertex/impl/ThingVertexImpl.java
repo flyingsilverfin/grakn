@@ -149,8 +149,8 @@ public abstract class ThingVertexImpl extends VertexImpl<VertexIID.Thing> implem
     }
 
     void deleteVertexFromStorage() {
-        graph.storage().delete(iid.bytes());
-        graph.storage().delete(EdgeIID.InwardsISA.of(type().iid(), iid).bytes());
+        graph.storage().delete(iid.byteArray());
+        graph.storage().delete(EdgeIID.InwardsISA.of(type().iid(), iid).byteArray());
     }
 
     void commitEdges() {
@@ -183,8 +183,8 @@ public abstract class ThingVertexImpl extends VertexImpl<VertexIID.Thing> implem
         }
 
         private void commitVertex() {
-            graph.storage().put(iid.bytes());
-            graph.storage().put(EdgeIID.InwardsISA.of(type().iid(), iid).bytes());
+            graph.storage().put(iid.byteArray());
+            graph.storage().put(EdgeIID.InwardsISA.of(type().iid(), iid).byteArray());
         }
 
         @Override

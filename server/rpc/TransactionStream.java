@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static grabl.tracing.client.GrablTracingThreadStatic.continueTraceOnThread;
-import static grakn.core.common.collection.Bytes.bytesToUUID;
+import static grakn.core.common.bytes.Bytes.bytesToUUID;
 import static grakn.core.common.exception.ErrorMessage.Session.SESSION_NOT_FOUND;
 import static grakn.core.common.exception.ErrorMessage.Transaction.TRANSACTION_ALREADY_OPENED;
 import static grakn.core.common.exception.ErrorMessage.Transaction.TRANSACTION_NOT_OPENED;

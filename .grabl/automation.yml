@@ -118,9 +118,6 @@ build:
         bazel test //test/assembly:docker --test_output=streamed
     deploy-artifact-snapshot:
       image: graknlabs-ubuntu-20.04
-      filter:
-        owner: graknlabs
-        branch: master
       dependencies: [test-assembly-linux-targz]
       command: |
         export DEPLOY_ARTIFACT_USERNAME=$REPO_GRAKN_USERNAME

@@ -17,17 +17,18 @@
 
 package grakn.core.graph.iid;
 
+import grakn.core.common.bytes.ByteArray;
 import grakn.core.graph.common.Encoding;
 import grakn.core.graph.common.KeyGenerator;
 
-import static grakn.core.common.collection.Bytes.join;
-import static grakn.core.common.collection.Bytes.sortedBytesToShort;
-import static java.util.Arrays.copyOfRange;
+import static grakn.core.common.bytes.ByteArray.join;
+import static grakn.core.common.bytes.ByteArray.slice;
+import static grakn.core.common.bytes.Bytes.sortedByteArrayToShort;
 
 public abstract class StructureIID extends IID {
 
-    StructureIID(byte[] bytes) {
-        super(bytes);
+    StructureIID(ByteArray byteArray) {
+        super(byteArray);
     }
 
     abstract Encoding.Structure encoding();
@@ -41,13 +42,13 @@ public abstract class StructureIID extends IID {
 
         public static final int LENGTH = PrefixIID.LENGTH + 2;
 
-        Rule(byte[] bytes) {
-            super(bytes);
-            assert bytes.length == LENGTH;
+        Rule(ByteArray byteArray) {
+            super(byteArray);
+            assert byteArray.length() == LENGTH;
         }
 
-        public static Rule of(byte[] bytes) {
-            return new Rule(bytes);
+        public static Rule of(ByteArray byteArray) {
+            return new Rule(byteArray);
         }
 
         /**
@@ -57,7 +58,7 @@ public abstract class StructureIID extends IID {
          * @return a byte array representing a new IID for a {@code RuleStructure}
          */
         public static Rule generate(KeyGenerator.Schema keyGenerator) {
-            return of(join(Encoding.Structure.RULE.prefix().bytes(), keyGenerator.forRule()));
+            return of(join(Encoding.Structure.RULE.prefix().byteArray(), keyGenerator.forRule()));
         }
 
         @Override
@@ -70,7 +71,7 @@ public abstract class StructureIID extends IID {
             if (readableString == null) {
                 readableString = "[" + PrefixIID.LENGTH + ": " + encoding().toString() + "][" +
                         (LENGTH - PrefixIID.LENGTH) + ": " +
-                        sortedBytesToShort(copyOfRange(bytes, PrefixIID.LENGTH, LENGTH)) + "]";
+                        sortedByteArrayToShort(slice(byteArray(), PrefixIID.LENGTH, LENGTH - PrefixIID.LENGTH)) + "]";
             }
             return readableString;
         }

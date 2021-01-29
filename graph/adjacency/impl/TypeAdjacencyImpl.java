@@ -18,6 +18,7 @@
 
 package grakn.core.graph.adjacency.impl;
 
+import grakn.core.common.bytes.ByteArray;
 import grakn.core.common.iterator.ResourceIterator;
 import grakn.core.concurrent.common.ConcurrentSet;
 import grakn.core.graph.adjacency.TypeAdjacency;
@@ -34,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 
-import static grakn.core.common.collection.Bytes.join;
+import static grakn.core.common.bytes.ByteArray.join;
 import static grakn.core.common.iterator.Iterators.empty;
 import static grakn.core.common.iterator.Iterators.iterate;
 import static grakn.core.common.iterator.Iterators.link;
@@ -135,14 +136,14 @@ public abstract class TypeAdjacencyImpl implements TypeAdjacency {
             isReadOnly = owner.graph().isReadOnly();
         }
 
-        private byte[] edgeIID(Encoding.Edge.Type encoding, TypeVertex adjacent) {
-            return join(owner.iid().bytes(),
-                        direction.isOut() ? encoding.out().bytes() : encoding.in().bytes(),
-                        adjacent.iid().bytes());
+        private ByteArray edgeIID(Encoding.Edge.Type encoding, TypeVertex adjacent) {
+            return join(owner.iid().byteArray(),
+                        direction.isOut() ? encoding.out().byteArray() : encoding.in().byteArray(),
+                        adjacent.iid().byteArray());
         }
 
-        private TypeEdge newPersistedEdge(byte[] key, byte[] value) {
-            VertexIID.Type overridden = ((value.length == 0) ? null : VertexIID.Type.of(value));
+        private TypeEdge newPersistedEdge(ByteArray key, ByteArray value) {
+            VertexIID.Type overridden = ((value.length() == 0) ? null : VertexIID.Type.of(value));
             return new TypeEdgeImpl.Persisted(owner.graph(), EdgeIID.Type.of(key), overridden);
         }
 
@@ -152,7 +153,7 @@ public abstract class TypeAdjacencyImpl implements TypeAdjacency {
                 return (bufferedEdges = edges.get(encoding)) != null ? iterate(bufferedEdges) : empty();
             }
 
-            byte[] iid = join(owner.iid().bytes(), direction.isOut() ? encoding.out().bytes() : encoding.in().bytes());
+            ByteArray iid = join(owner.iid().byteArray(), direction.isOut() ? encoding.out().byteArray() : encoding.in().byteArray());
             ResourceIterator<TypeEdge> storageIterator = owner.graph().storage()
                     .iterate(iid, (key, value) -> cache(newPersistedEdge(key, value)));
             if (isReadOnly) storageIterator = storageIterator.onConsumed(() -> fetched.add(encoding));
@@ -176,8 +177,8 @@ public abstract class TypeAdjacencyImpl implements TypeAdjacency {
                     (container = edges.get(encoding).stream().filter(predicate).findAny()).isPresent()) {
                 return container.get();
             } else {
-                byte[] edgeIID = edgeIID(encoding, adjacent);
-                byte[] overriddenIID;
+                ByteArray edgeIID = edgeIID(encoding, adjacent);
+                ByteArray overriddenIID;
                 if ((overriddenIID = owner.graph().storage().get(edgeIID)) != null) {
                     return cache(newPersistedEdge(edgeIID, overriddenIID));
                 }

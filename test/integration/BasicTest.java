@@ -40,9 +40,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static grakn.core.common.iterator.Iterators.link;
 import static grakn.core.concept.type.AttributeType.ValueType.BOOLEAN;
 import static grakn.core.concept.type.AttributeType.ValueType.DATETIME;
 import static grakn.core.concept.type.AttributeType.ValueType.DOUBLE;
@@ -799,5 +803,70 @@ public class BasicTest {
                 }
             }
         }
+    }
+
+    byte[] bytes = new byte[10000];
+
+    class ByteIterator implements Iterator<Byte> {
+
+        private final byte[] bytes;
+        private int index;
+
+        public ByteIterator(byte[] bytes) {
+            this.bytes = bytes;
+            this.index = 0;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return index < bytes.length;
+        }
+
+        @Override
+        public Byte next() {
+            return bytes[index++];
+        }
+    }
+
+    public byte[] case1(int copyCount) {
+        List<ByteIterator> byteIterators = new ArrayList<>();
+        for (int i = 0; i < copyCount; i++) {
+            byteIterators.add(new ByteIterator(bytes));
+        }
+        Iterator<Byte> iterator = link(byteIterators);
+        byte[] copyBytes = new byte[bytes.length * copyCount];
+        for (int i = 0; iterator.hasNext(); i++) {
+            copyBytes[i] = iterator.next();
+        }
+        return copyBytes;
+    }
+
+    public byte[] case2(int copyCount) {
+        byte[] copyBytes = new byte[bytes.length * copyCount];
+        for (int i = 0; i < copyCount; i++) {
+            System.arraycopy(bytes, 0, copyBytes, i * bytes.length, bytes.length);
+        }
+        return copyBytes;
+    }
+
+    @Test
+    public void test() {
+        int testCount = 10;
+        int copyCount = 10;
+        List<Long> times1 = new ArrayList<>();
+        List<Long> times2 = new ArrayList<>();
+        for (int i = 0; i < testCount; i++) {
+            long start;
+
+            start = System.currentTimeMillis();
+            case1(copyCount);
+            times1.add(System.currentTimeMillis() - start);
+
+            start = System.currentTimeMillis();
+            case2(copyCount);
+            times2.add(System.currentTimeMillis() - start);
+        }
+        System.out.println("Case 1 " + (times1.stream().mapToLong(x -> x).sum() / testCount));
+        System.out.println("Case 2 " + (times2.stream().mapToLong(x -> x).sum() / testCount));
     }
 }

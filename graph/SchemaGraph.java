@@ -19,6 +19,7 @@
 package grakn.core.graph;
 
 import grakn.common.collection.Pair;
+import grakn.core.common.bytes.ByteArray;
 import grakn.core.common.exception.GraknException;
 import grakn.core.common.iterator.ResourceIterator;
 import grakn.core.common.parameters.Label;
@@ -50,7 +51,7 @@ import java.util.stream.Stream;
 import static grakn.common.collection.Collections.list;
 import static grakn.common.collection.Collections.pair;
 import static grakn.common.collection.Collections.set;
-import static grakn.core.common.collection.Bytes.stripPrefix;
+import static grakn.core.common.bytes.ByteArray.slice;
 import static grakn.core.common.exception.ErrorMessage.SchemaGraph.INVALID_SCHEMA_WRITE;
 import static grakn.core.common.exception.ErrorMessage.Transaction.TRANSACTION_SCHEMA_READ_VIOLATION;
 import static grakn.core.common.exception.ErrorMessage.TypeRead.TYPE_NOT_FOUND;
@@ -266,7 +267,7 @@ public class SchemaGraph implements Graph {
             if (vertex != null) return vertex;
 
             IndexIID.Type index = IndexIID.Type.Label.of(label, scope);
-            byte[] iid = storage.get(index.bytes());
+            ByteArray iid = storage.get(index.byteArray());
             if (iid != null) {
                 vertex = typesByIID.computeIfAbsent(
                         VertexIID.Type.of(iid), i -> new TypeVertexImpl.Persisted(this, i, label, scope)
@@ -411,7 +412,7 @@ public class SchemaGraph implements Graph {
 
         public ResourceIterator<RuleStructure> all() {
             Encoding.Prefix index = IndexIID.Rule.prefix();
-            ResourceIterator<RuleStructure> persistedRules = storage.iterate(index.bytes(), (key, value) ->
+            ResourceIterator<RuleStructure> persistedRules = storage.iterate(index.byteArray(), (key, value) ->
                     convert(StructureIID.Rule.of(value)));
             return link(buffered(), persistedRules).distinct();
         }
@@ -440,7 +441,7 @@ public class SchemaGraph implements Graph {
                 if (vertex != null) return vertex;
 
                 IndexIID.Rule index = IndexIID.Rule.of(label);
-                byte[] iid = storage.get(index.bytes());
+                ByteArray iid = storage.get(index.byteArray());
                 if (iid != null) vertex = convert(StructureIID.Rule.of(iid));
                 return vertex;
             } catch (InterruptedException e) {
@@ -594,7 +595,7 @@ public class SchemaGraph implements Graph {
                     Set<RuleStructure> rules = concludesVertex.get(type);
                     if (rules != null && rules.contains(rule)) {
                         concludesVertex.get(type).remove(rule);
-                        storage.delete(Rule.Key.concludedVertex(type.iid(), rule.iid()).bytes());
+                        storage.delete(Rule.Key.concludedVertex(type.iid(), rule.iid()).byteArray());
                     }
                 }
 
@@ -602,19 +603,19 @@ public class SchemaGraph implements Graph {
                     Set<RuleStructure> rules = concludesEdgeTo.get(type);
                     if (rules != null && rules.contains(rule)) {
                         rules.remove(rule);
-                        storage.delete(Rule.Key.concludedEdgeTo(type.iid(), rule.iid()).bytes());
+                        storage.delete(Rule.Key.concludedEdgeTo(type.iid(), rule.iid()).byteArray());
                     }
                 }
 
                 private Set<RuleStructure> loadConcludesVertex(TypeVertex type) {
                     Rule scanPrefix = Rule.Prefix.concludedVertex(type.iid());
-                    return storage.iterate(scanPrefix.bytes(), (key, value) -> StructureIID.Rule.of(stripPrefix(key, scanPrefix.length())))
+                    return storage.iterate(scanPrefix.byteArray(), (key, value) -> StructureIID.Rule.of(slice(key, scanPrefix.length(), key.length() - scanPrefix.length())))
                             .map(Rules.this::convert).toSet();
                 }
 
                 private Set<RuleStructure> loadConcludesEdgeTo(TypeVertex attrType) {
                     Rule scanPrefix = Rule.Prefix.concludedEdgeTo(attrType.iid());
-                    return storage.iterate(scanPrefix.bytes(), (key, value) -> StructureIID.Rule.of(stripPrefix(key, scanPrefix.length())))
+                    return storage.iterate(scanPrefix.byteArray(), (key, value) -> StructureIID.Rule.of(slice(key, scanPrefix.length(), key.length() - scanPrefix.length())))
                             .map(Rules.this::convert).toSet();
                 }
 
@@ -656,14 +657,14 @@ public class SchemaGraph implements Graph {
                         VertexIID.Type typeIID = type.iid();
                         rules.forEach(rule -> {
                             Rule concludesVertex = Rule.Key.concludedVertex(typeIID, rule.iid());
-                            storage.put(concludesVertex.bytes());
+                            storage.put(concludesVertex.byteArray());
                         });
                     });
                     concludesEdgeTo.forEach((type, rules) -> {
                         VertexIID.Type typeIID = type.iid();
                         rules.forEach(rule -> {
                             Rule concludesEdgeTo = Rule.Key.concludedEdgeTo(typeIID, rule.iid());
-                            storage.put(concludesEdgeTo.bytes());
+                            storage.put(concludesEdgeTo.byteArray());
                         });
                     });
                 }
@@ -740,12 +741,12 @@ public class SchemaGraph implements Graph {
                 private void delete(RuleStructure rule, TypeVertex type) {
                     Set<RuleStructure> rules = references.get(type);
                     if (rules != null) rules.remove(rule);
-                    storage.delete(Rule.Key.contained(type.iid(), rule.iid()).bytes());
+                    storage.delete(Rule.Key.contained(type.iid(), rule.iid()).byteArray());
                 }
 
                 private Set<RuleStructure> loadIndex(TypeVertex type) {
                     Rule scanPrefix = Rule.Prefix.contained(type.iid());
-                    return storage.iterate(scanPrefix.bytes(), (key, value) -> StructureIID.Rule.of(stripPrefix(key, scanPrefix.length())))
+                    return storage.iterate(scanPrefix.byteArray(), (key, value) -> StructureIID.Rule.of(slice(key, scanPrefix.length(), key.length() - scanPrefix.length())))
                             .map(Rules.this::convert).toSet();
                 }
 
@@ -782,7 +783,7 @@ public class SchemaGraph implements Graph {
                     references.forEach((type, rules) -> {
                         rules.forEach(rule -> {
                             Rule typeInRule = Rule.Key.contained(type.iid(), rule.iid());
-                            storage.put(typeInRule.bytes());
+                            storage.put(typeInRule.byteArray());
                         });
                     });
                 }

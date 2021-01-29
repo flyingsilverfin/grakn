@@ -18,6 +18,7 @@
 
 package grakn.core.graph.common;
 
+import grakn.core.common.bytes.ByteArray;
 import grakn.core.common.exception.ErrorMessage;
 import grakn.core.common.exception.GraknException;
 import grakn.core.common.iterator.ResourceIterator;
@@ -31,23 +32,23 @@ public interface Storage {
 
     boolean isOpen();
 
-    byte[] get(byte[] key);
+    ByteArray get(ByteArray key);
 
-    byte[] getLastKey(byte[] prefix);
+    ByteArray getLastKey(ByteArray prefix);
 
-    void delete(byte[] key);
+    void delete(ByteArray key);
 
-    void put(byte[] key);
+    void put(ByteArray key);
 
-    void put(byte[] key, byte[] value);
+    void put(ByteArray key, ByteArray value);
 
-    void putUntracked(byte[] key);
+    void putUntracked(ByteArray key);
 
-    void putUntracked(byte[] key, byte[] value);
+    void putUntracked(ByteArray key, ByteArray value);
 
-    void mergeUntracked(byte[] key, byte[] value);
+    void mergeUntracked(ByteArray key, ByteArray value);
 
-    <G> ResourceIterator<G> iterate(byte[] key, BiFunction<byte[], byte[], G> constructor);
+    <G> ResourceIterator<G> iterate(ByteArray key, BiFunction<ByteArray, ByteArray, G> constructor);
 
     GraknException exception(ErrorMessage error);
 

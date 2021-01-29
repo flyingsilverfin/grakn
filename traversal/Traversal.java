@@ -19,6 +19,7 @@
 package grakn.core.traversal;
 
 import grakn.common.collection.Pair;
+import grakn.core.common.bytes.ByteArray;
 import grakn.core.common.exception.GraknException;
 import grakn.core.common.iterator.ResourceIterator;
 import grakn.core.common.parameters.Arguments;
@@ -51,6 +52,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static grakn.common.collection.Collections.pair;
+import static grakn.core.common.bytes.ByteArray.raw;
 import static grakn.core.common.exception.ErrorMessage.Internal.ILLEGAL_STATE;
 import static grakn.core.common.iterator.Iterators.cartesian;
 import static grakn.core.common.iterator.Iterators.iterate;
@@ -209,7 +211,7 @@ public class Traversal {
 
     public void iid(Identifier.Variable thing, byte[] iid) {
         assert modifiable;
-        parameters.putIID(thing, VertexIID.Thing.of(iid));
+        parameters.putIID(thing, VertexIID.Thing.of(raw(iid)));
         structure.thingVertex(thing).props().hasIID(true);
     }
 

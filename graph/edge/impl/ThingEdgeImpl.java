@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static grakn.core.common.collection.Bytes.join;
+import static grakn.core.common.bytes.ByteArray.join;
 import static grakn.core.common.exception.ErrorMessage.Transaction.ILLEGAL_OPERATION;
 import static grakn.core.graph.common.Encoding.Prefix.VERTEX_ROLE;
 import static grakn.core.graph.common.Encoding.Status.BUFFERED;
@@ -154,8 +154,8 @@ public abstract class ThingEdgeImpl implements ThingEdge {
                 from.outs().remove(this);
                 to.ins().remove(this);
                 if (!(from.status().equals(BUFFERED)) && !(to.status().equals(BUFFERED))) {
-                    graph.storage().delete(outIID().bytes());
-                    graph.storage().delete(inIID().bytes());
+                    graph.storage().delete(outIID().byteArray());
+                    graph.storage().delete(inIID().byteArray());
                 }
                 if (encoding == Encoding.Edge.Thing.HAS) {
                     graph.stats().hasEdgeDeleted(from.iid(), to.iid().asAttribute());
@@ -167,8 +167,8 @@ public abstract class ThingEdgeImpl implements ThingEdge {
         public void commit() {
             if (isInferred()) throw GraknException.of(ILLEGAL_OPERATION);
             if (committed.compareAndSet(false, true)) {
-                graph.storage().put(outIID().bytes());
-                graph.storage().put(inIID().bytes());
+                graph.storage().put(outIID().byteArray());
+                graph.storage().put(inIID().byteArray());
             }
         }
 
@@ -253,7 +253,7 @@ public abstract class ThingEdgeImpl implements ThingEdge {
             }
             if (!iid.suffix().isEmpty()) {
                 optimisedIID = VertexIID.Thing.of(join(
-                        VERTEX_ROLE.bytes(), iid.infix().asRolePlayer().tail().bytes(), iid.suffix().bytes()
+                        VERTEX_ROLE.byteArray(), iid.infix().asRolePlayer().tail().byteArray(), iid.suffix().byteArray()
                 ));
             } else {
                 optimisedIID = null;
@@ -319,8 +319,8 @@ public abstract class ThingEdgeImpl implements ThingEdge {
             if (deleted.compareAndSet(false, true)) {
                 from().outs().remove(this);
                 to().ins().remove(this);
-                graph.storage().delete(this.outIID.bytes());
-                graph.storage().delete(this.inIID.bytes());
+                graph.storage().delete(this.outIID.byteArray());
+                graph.storage().delete(this.inIID.byteArray());
                 if (encoding == Encoding.Edge.Thing.HAS) {
                     graph.stats().hasEdgeDeleted(fromIID, toIID.asAttribute());
                 }
