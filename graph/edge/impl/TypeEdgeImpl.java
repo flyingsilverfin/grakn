@@ -119,8 +119,8 @@ public abstract class TypeEdgeImpl implements TypeEdge {
                 from.outs().remove(this);
                 to.ins().remove(this);
                 if (from instanceof Persisted && to instanceof Persisted) {
-                    graph.storage().deleteUntracked(outIID().bytes());
-                    graph.storage().deleteUntracked(inIID().bytes());
+                    graph.storage().deleteUntracked(outIID().byteArray());
+                    graph.storage().deleteUntracked(inIID().byteArray());
                 }
             }
         }
@@ -137,11 +137,11 @@ public abstract class TypeEdgeImpl implements TypeEdge {
         public void commit() {
             if (committed.compareAndSet(false, true)) {
                 if (encoding.out() != null) {
-                    if (overridden != null) graph.storage().putUntracked(outIID().bytes(), overridden.iid().bytes());
-                    else graph.storage().putUntracked(outIID().bytes());
+                    if (overridden != null) graph.storage().putUntracked(outIID().byteArray(), overridden.iid().byteArray());
+                    else graph.storage().putUntracked(outIID().byteArray());
                 }
                 if (encoding.in() != null) {
-                    graph.storage().putUntracked(inIID().bytes());
+                    graph.storage().putUntracked(inIID().byteArray());
                 }
             }
         }
@@ -292,7 +292,7 @@ public abstract class TypeEdgeImpl implements TypeEdge {
         public void overridden(TypeVertex overridden) {
             this.overridden = overridden;
             overriddenIID = overridden.iid();
-            graph.storage().putUntracked(outIID.bytes(), overriddenIID.bytes());
+            graph.storage().putUntracked(outIID.byteArray(), overriddenIID.byteArray());
         }
 
         /**
@@ -309,8 +309,8 @@ public abstract class TypeEdgeImpl implements TypeEdge {
             if (deleted.compareAndSet(false, true)) {
                 from().outs().remove(this);
                 to().ins().remove(this);
-                graph.storage().deleteUntracked(this.outIID.bytes());
-                graph.storage().deleteUntracked(this.inIID.bytes());
+                graph.storage().deleteUntracked(this.outIID.byteArray());
+                graph.storage().deleteUntracked(this.inIID.byteArray());
             }
         }
 

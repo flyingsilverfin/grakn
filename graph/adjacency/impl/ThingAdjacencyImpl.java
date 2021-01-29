@@ -18,6 +18,7 @@
 
 package com.vaticle.typedb.core.graph.adjacency.impl;
 
+import grakn.core.common.bytes.ByteArray;
 import com.vaticle.typedb.common.collection.ConcurrentSet;
 import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
 import com.vaticle.typedb.core.graph.adjacency.ThingAdjacency;
@@ -37,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 
-import static com.vaticle.typedb.core.common.collection.Bytes.join;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
 import static com.vaticle.typedb.core.common.iterator.Iterators.empty;
 import static com.vaticle.typedb.core.common.iterator.Iterators.iterate;
 import static com.vaticle.typedb.core.common.iterator.Iterators.link;
@@ -276,7 +277,7 @@ public abstract class ThingAdjacencyImpl implements ThingAdjacency {
         }
 
         private FunctionalIterator<ThingEdge> edgeIterator(Encoding.Edge.Thing encoding, IID... lookahead) {
-            byte[] iid = join(owner.iid().bytes(), infixIID(encoding, lookahead).bytes());
+            ByteArray iid = join(owner.iid().byteArray(), infixIID(encoding, lookahead).byteArray());
             FunctionalIterator<ThingEdge> storageIterator = owner.graph().storage()
                     .iterate(iid, (key, value) -> cache(newPersistedEdge(EdgeIID.Thing.of(key))));
             FunctionalIterator<ThingEdge> bufferedIterator = bufferedEdgeIterator(encoding, lookahead);
@@ -304,7 +305,7 @@ public abstract class ThingAdjacencyImpl implements ThingAdjacency {
             if (edge != null) return edge;
 
             EdgeIID.Thing edgeIID = EdgeIID.Thing.of(owner.iid(), infixIID(encoding), adjacent.iid());
-            if (owner.graph().storage().get(edgeIID.bytes()) == null) return null;
+            if (owner.graph().storage().get(edgeIID.byteArray()) == null) return null;
             else return cache(newPersistedEdge(edgeIID));
         }
 
@@ -318,7 +319,7 @@ public abstract class ThingAdjacencyImpl implements ThingAdjacency {
                     owner.iid(), infixIID(encoding, optimised.iid().type()),
                     adjacent.iid(), SuffixIID.of(optimised.iid().key())
             );
-            if (owner.graph().storage().get(edgeIID.bytes()) == null) return null;
+            if (owner.graph().storage().get(edgeIID.byteArray()) == null) return null;
             else return cache(newPersistedEdge(edgeIID));
         }
 

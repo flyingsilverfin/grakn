@@ -18,20 +18,22 @@
 
 package com.vaticle.typedb.core.rocks;
 
+import grakn.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.iterator.AbstractFunctionalIterator;
 
 import java.util.NoSuchElementException;
 import java.util.function.BiFunction;
 
-import static com.vaticle.typedb.core.common.collection.Bytes.bytesHavePrefix;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
+import static grakn.core.common.bytes.Bytes.bytesHavePrefix;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.RESOURCE_CLOSED;
 
 public final class RocksIterator<T> extends AbstractFunctionalIterator<T> implements AutoCloseable {
 
-    private final byte[] prefix;
+    private final ByteArray prefix;
     private final RocksStorage storage;
-    private final BiFunction<byte[], byte[], T> constructor;
+    private final BiFunction<ByteArray, ByteArray, T> constructor;
     private org.rocksdb.RocksIterator internalRocksIterator;
     private State state;
     private T next;
@@ -39,7 +41,7 @@ public final class RocksIterator<T> extends AbstractFunctionalIterator<T> implem
 
     private enum State {INIT, EMPTY, FETCHED, COMPLETED}
 
-    RocksIterator(RocksStorage storage, byte[] prefix, BiFunction<byte[], byte[], T> constructor) {
+    RocksIterator(RocksStorage storage, ByteArray prefix, BiFunction<ByteArray, ByteArray, T> constructor) {
         this.storage = storage;
         this.prefix = prefix;
         this.constructor = constructor;

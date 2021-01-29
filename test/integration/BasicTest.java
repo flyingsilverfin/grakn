@@ -42,9 +42,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static grakn.core.common.iterator.Iterators.link;
 import static com.vaticle.typedb.core.concept.type.AttributeType.ValueType.BOOLEAN;
 import static com.vaticle.typedb.core.concept.type.AttributeType.ValueType.DATETIME;
 import static com.vaticle.typedb.core.concept.type.AttributeType.ValueType.DOUBLE;

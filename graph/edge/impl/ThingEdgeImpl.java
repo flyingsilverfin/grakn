@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.vaticle.typedb.core.common.collection.Bytes.join;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Transaction.ILLEGAL_OPERATION;
 import static com.vaticle.typedb.core.graph.common.Encoding.Prefix.VERTEX_ROLE;
 import static com.vaticle.typedb.core.graph.common.Encoding.Status.BUFFERED;
@@ -154,8 +154,8 @@ public abstract class ThingEdgeImpl implements ThingEdge {
                 from.outs().remove(this);
                 to.ins().remove(this);
                 if (!(from.status().equals(BUFFERED)) && !(to.status().equals(BUFFERED))) {
-                    graph.storage().deleteTracked(outIID().bytes());
-                    graph.storage().deleteUntracked(inIID().bytes());
+                    graph.storage().deleteTracked(outIID().byteArray());
+                    graph.storage().deleteUntracked(inIID().byteArray());
                 }
                 if (encoding == Encoding.Edge.Thing.HAS && !isInferred) {
                     graph.stats().hasEdgeDeleted(from.iid(), to.iid().asAttribute());
@@ -167,8 +167,8 @@ public abstract class ThingEdgeImpl implements ThingEdge {
         public void commit() {
             if (isInferred()) throw TypeDBException.of(ILLEGAL_OPERATION);
             if (committed.compareAndSet(false, true)) {
-                graph.storage().putTracked(outIID().bytes());
-                graph.storage().putUntracked(inIID().bytes());
+                graph.storage().putTracked(outIID().byteArray());
+                graph.storage().putUntracked(inIID().byteArray());
             }
         }
 
@@ -253,7 +253,7 @@ public abstract class ThingEdgeImpl implements ThingEdge {
             }
             if (!iid.suffix().isEmpty()) {
                 optimisedIID = VertexIID.Thing.of(join(
-                        VERTEX_ROLE.bytes(), iid.infix().asRolePlayer().tail().bytes(), iid.suffix().bytes()
+                        VERTEX_ROLE.byteArray(), iid.infix().asRolePlayer().tail().byteArray(), iid.suffix().byteArray()
                 ));
             } else {
                 optimisedIID = null;
@@ -319,8 +319,8 @@ public abstract class ThingEdgeImpl implements ThingEdge {
             if (deleted.compareAndSet(false, true)) {
                 from().outs().remove(this);
                 to().ins().remove(this);
-                graph.storage().deleteTracked(this.outIID.bytes());
-                graph.storage().deleteUntracked(this.inIID.bytes());
+                graph.storage().deleteTracked(this.outIID.byteArray());
+                graph.storage().deleteUntracked(this.inIID.byteArray());
                 if (encoding == Encoding.Edge.Thing.HAS && !isInferred) {
                     graph.stats().hasEdgeDeleted(fromIID, toIID.asAttribute());
                 }

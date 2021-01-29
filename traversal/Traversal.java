@@ -210,7 +210,7 @@ public class Traversal {
 
     public void iid(Identifier.Variable thing, byte[] iid) {
         assert modifiable;
-        parameters.putIID(thing, VertexIID.Thing.of(iid));
+        parameters.putIID(thing, VertexIID.Thing.of(raw(iid)));
         structure.thingVertex(thing).props().hasIID(true);
     }
 

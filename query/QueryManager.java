@@ -69,6 +69,7 @@ public class QueryManager {
 
     public FunctionalIterator<ConceptMap> match(TypeQLMatch query, Context.Query context) {
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "match")) {
+            LOG.debug("Executing query\n" + query);
             return Matcher.create(reasoner, query, context).execute().onError(conceptMgr::exception);
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);
@@ -85,6 +86,7 @@ public class QueryManager {
 
     public Numeric match(TypeQLMatch.Aggregate query, Context.Query queryContext) {
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "match_aggregate")) {
+            LOG.debug("Executing query\n" + query);
             return Matcher.create(reasoner, query, queryContext).execute();
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);
@@ -97,6 +99,7 @@ public class QueryManager {
 
     public FunctionalIterator<ConceptMapGroup> match(TypeQLMatch.Group query, Context.Query queryContext) {
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "match_group")) {
+            LOG.debug("Executing query\n" + query);
             return Matcher.create(reasoner, query, queryContext).execute().onError(conceptMgr::exception);
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);
@@ -109,6 +112,7 @@ public class QueryManager {
 
     public FunctionalIterator<NumericGroup> match(TypeQLMatch.Group.Aggregate query, Context.Query queryContext) {
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "match_group_aggregate")) {
+            LOG.debug("Executing query\n" + query);
             return Matcher.create(reasoner, query, queryContext).execute().onError(conceptMgr::exception);
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);
@@ -123,6 +127,7 @@ public class QueryManager {
         if (context.sessionType().isSchema()) throw conceptMgr.exception(SESSION_SCHEMA_VIOLATION);
         if (context.transactionType().isRead()) throw conceptMgr.exception(TRANSACTION_DATA_READ_VIOLATION);
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "insert")) {
+            LOG.debug("Executing query\n" + query);
             return Inserter.create(reasoner, conceptMgr, query, context).execute().onError(conceptMgr::exception);
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);
@@ -137,6 +142,7 @@ public class QueryManager {
         if (context.sessionType().isSchema()) throw conceptMgr.exception(SESSION_SCHEMA_VIOLATION);
         if (context.transactionType().isRead()) throw conceptMgr.exception(TRANSACTION_DATA_READ_VIOLATION);
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "delete")) {
+            LOG.debug("Executing query\n" + query);
             Deleter.create(reasoner, query, context).execute();
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);
@@ -165,6 +171,7 @@ public class QueryManager {
         if (context.sessionType().isData()) throw conceptMgr.exception(SESSION_DATA_VIOLATION);
         if (context.transactionType().isRead()) throw conceptMgr.exception(TRANSACTION_SCHEMA_READ_VIOLATION);
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "define")) {
+            LOG.debug("Executing query\n" + query);
             Definer.create(conceptMgr, logicMgr, query, context).execute();
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);
@@ -179,6 +186,7 @@ public class QueryManager {
         if (context.sessionType().isData()) throw conceptMgr.exception(SESSION_DATA_VIOLATION);
         if (context.transactionType().isRead()) throw conceptMgr.exception(TRANSACTION_SCHEMA_READ_VIOLATION);
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "undefine")) {
+            LOG.debug("Executing query\n" + query);
             Undefiner.create(conceptMgr, logicMgr, query, context).execute();
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);

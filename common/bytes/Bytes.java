@@ -16,7 +16,7 @@
  *
  */
 
-package com.vaticle.typedb.core.common.collection;
+package com.vaticle.typedb.core.common.bytes;
 
 import com.vaticle.typedb.core.common.exception.TypeDBCheckedException;
 
@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
 
+import static grakn.core.common.bytes.ByteArray.raw;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.ThingWrite.ILLEGAL_STRING_SIZE;
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 import static java.util.Arrays.copyOfRange;
@@ -56,10 +57,6 @@ public class Bytes {
         return joint;
     }
 
-    public static byte[] stripPrefix(byte[] bytes, int prefixLength) {
-        return copyOfRange(bytes, prefixLength, bytes.length);
-    }
-
     public static boolean bytesHavePrefix(byte[] bytes, byte[] prefix) {
         if (bytes.length < prefix.length) return false;
         for (int i = 0; i < prefix.length; i++) {
@@ -75,9 +72,17 @@ public class Bytes {
         return bytes;
     }
 
+    public static ByteArray unsignedShortToByteArray(int num) {
+        return raw(unsignedShortToBytes(num));
+    }
+
     public static int unsignedBytesToShort(byte[] bytes) {
         assert bytes.length == SHORT_SIZE;
         return ((bytes[0] << 8) & 0xff00) | (bytes[1] & 0xff);
+    }
+
+    public static int unsignedByteArrayToShort(ByteArray byteArray) {
+        return unsignedBytesToShort(byteArray.bytes());
     }
 
     public static byte[] shortToSortedBytes(int num) {
@@ -87,10 +92,18 @@ public class Bytes {
         return bytes;
     }
 
+    public static ByteArray shortToSortedByteArray(int num) {
+        return raw(shortToSortedBytes(num));
+    }
+
     public static short sortedBytesToShort(byte[] bytes) {
         assert bytes.length == SHORT_SIZE;
         bytes[0] = (byte) (bytes[0] ^ 0x80);
         return ByteBuffer.wrap(bytes).getShort();
+    }
+
+    public static short sortedByteArrayToShort(ByteArray byteArray) {
+        return sortedBytesToShort(byteArray.bytes());
     }
 
     public static byte[] integerToSortedBytes(int num) {
@@ -121,14 +134,26 @@ public class Bytes {
         return bytes;
     }
 
+    public static ByteArray longToSortedByteArray(long num) {
+        return raw(longToSortedBytes(num));
+    }
+
     public static long sortedBytesToLong(byte[] bytes) {
         assert bytes.length == LONG_SIZE;
         bytes[0] = (byte) (bytes[0] ^ 0x80);
         return ByteBuffer.wrap(bytes).getLong();
     }
 
+    public static long sortedByteArrayToLong(ByteArray byteArray) {
+        return sortedBytesToLong(byteArray.bytes());
+    }
+
     public static byte[] longToBytes(long num) {
         return ByteBuffer.allocate(LONG_SIZE).order(LITTLE_ENDIAN).putLong(num).array();
+    }
+
+    public static ByteArray longToByteArray(long num) {
+        return raw(longToBytes(num));
     }
 
     public static long bytesToLong(byte[] bytes) {
@@ -143,6 +168,10 @@ public class Bytes {
     public static int bytesToInt(byte[] bytes) {
         assert bytes.length == INTEGER_SIZE;
         return ByteBuffer.wrap(bytes).order(LITTLE_ENDIAN).getInt();
+    }
+
+    public static long byteArrayToLong(ByteArray byteArray) {
+        return bytesToLong(byteArray.bytes());
     }
 
     /**
@@ -173,6 +202,10 @@ public class Bytes {
         return bytes;
     }
 
+    public static ByteArray doubleToSortedByteArray(double value) {
+        return raw(doubleToSortedBytes(value));
+    }
+
     public static double sortedBytesToDouble(byte[] bytes) {
         assert bytes.length == DOUBLE_SIZE;
         if ((bytes[0] & 0x80) == 0x80) {
@@ -185,12 +218,16 @@ public class Bytes {
         return ByteBuffer.wrap(bytes).getDouble();
     }
 
-    public static byte[] stringToBytes(String value, Charset encoding) throws TypeDBCheckedException {
+    public static double sortedByteArrayToDouble(ByteArray byteArray) {
+        return sortedBytesToDouble(byteArray.bytes());
+    }
+
+    public static ByteArray stringToByteArray(String value, Charset encoding) throws TypeDBCheckedException {
         byte[] bytes = value.getBytes(encoding);
         if (bytes.length > SHORT_UNSIGNED_MAX_VALUE) {
             throw TypeDBCheckedException.of(ILLEGAL_STRING_SIZE, SHORT_UNSIGNED_MAX_VALUE);
         }
-        return join(unsignedShortToBytes(bytes.length), bytes);
+        return ByteArray.join(unsignedShortToByteArray(bytes.length), raw(bytes));
     }
 
     public static String bytesToString(byte[] bytes, Charset encoding) {
@@ -199,8 +236,16 @@ public class Bytes {
         return new String(x, encoding);
     }
 
+    public static String byteArrayToString(ByteArray byteArray, Charset encoding) {
+        return bytesToString(byteArray.bytes(), encoding);
+    }
+
     public static byte booleanToByte(boolean value) {
         return (byte) (value ? 1 : 0);
+    }
+
+    public static ByteArray booleanToByteArray(boolean value) {
+        return raw(booleanToByte(value));
     }
 
     public static Boolean byteToBoolean(byte aByte) {
@@ -211,8 +256,16 @@ public class Bytes {
         return longToSortedBytes(value.atZone(timeZoneID).toInstant().toEpochMilli());
     }
 
+    public static ByteArray dateTimeToByteArray(java.time.LocalDateTime value, ZoneId timeZoneID) {
+        return raw(dateTimeToBytes(value, timeZoneID));
+    }
+
     public static java.time.LocalDateTime bytesToDateTime(byte[] bytes, ZoneId timeZoneID) {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(sortedBytesToLong(bytes)), timeZoneID);
+    }
+
+    public static java.time.LocalDateTime byteArrayToDateTime(ByteArray byteArray, ZoneId timeZoneID) {
+        return bytesToDateTime(byteArray.bytes(), timeZoneID);
     }
 
     public static byte[] uuidToBytes(UUID uuid) {
@@ -227,14 +280,6 @@ public class Bytes {
         long firstLong = buffer.getLong();
         long secondLong = buffer.getLong();
         return new UUID(firstLong, secondLong);
-    }
-
-    public static boolean arrayContains(byte[] container, int from, byte[] contained) {
-        if ((container.length - from) > contained.length) return false;
-        for (int i = 0; i < contained.length; i++) {
-            if (container[from + i] != contained[i]) return false;
-        }
-        return true;
     }
 
     public static byte signedByte(int value) {

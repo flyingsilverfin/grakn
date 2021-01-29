@@ -19,7 +19,8 @@
 package com.vaticle.typedb.core.graph.common;
 
 import com.vaticle.typedb.common.collection.Pair;
-import com.vaticle.typedb.core.common.collection.Bytes;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
+import grakn.core.common.bytes.Bytes;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.parameters.Label;
 import com.vaticle.typeql.lang.common.TypeQLArg;
@@ -38,8 +39,9 @@ import static com.vaticle.typedb.common.collection.Collections.map;
 import static com.vaticle.typedb.common.collection.Collections.pair;
 import static com.vaticle.typedb.common.collection.Collections.set;
 import static com.vaticle.typedb.common.util.Objects.className;
-import static com.vaticle.typedb.core.common.collection.Bytes.signedByte;
-import static com.vaticle.typedb.core.common.collection.Bytes.unsignedByte;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
+import static grakn.core.common.bytes.Bytes.signedByte;
+import static com.vaticle.typedb.core.common.bytes.Bytes.unsignedByte;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.ILLEGAL_CAST;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.UNRECOGNISED_VALUE;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -193,11 +195,13 @@ public class Encoding {
         private final byte key;
         private final PrefixType type;
         private final byte[] bytes;
+        private final ByteArray byteArray;
 
         Prefix(int key, PrefixType type) {
             this.key = unsignedByte(key);
             this.type = type;
             this.bytes = new byte[]{this.key};
+            this.byteArray = raw(this.bytes);
         }
 
         public static Prefix of(byte key) {
@@ -212,6 +216,10 @@ public class Encoding {
 
         public byte[] bytes() {
             return bytes;
+        }
+
+        public ByteArray byteArray() {
+            return byteArray;
         }
 
         public PrefixType type() {
@@ -308,6 +316,7 @@ public class Encoding {
         private final byte key;
         private final boolean isOptimisation;
         private final byte[] bytes;
+        private final ByteArray byteArray;
 
         Infix(int key) {
             this(key, false);
@@ -317,6 +326,7 @@ public class Encoding {
             this.key = signedByte(key);
             this.isOptimisation = isOptimisation;
             this.bytes = new byte[]{this.key};
+            this.byteArray = raw(this.bytes);
         }
 
         public static Infix of(byte key) {
@@ -331,6 +341,10 @@ public class Encoding {
 
         public byte[] bytes() {
             return bytes;
+        }
+
+        public ByteArray byteArray() {
+            return byteArray;
         }
 
         public boolean isOptimisation() {
@@ -411,11 +425,13 @@ public class Encoding {
 
         private final TypeQLArg.ValueType typeQLValueType;
         private final byte[] bytes;
+        private final ByteArray byteArray;
 
         ValueType(int key, Class<?> valueClass, boolean isWritable, boolean isKeyable,
                   @Nullable TypeQLArg.ValueType typeQLValueType) {
             this.key = unsignedByte(key);
             this.bytes = new byte[]{this.key};
+            this.byteArray = raw(bytes);
             this.valueClass = valueClass;
             this.isWritable = isWritable;
             this.isKeyable = isKeyable;
@@ -450,6 +466,10 @@ public class Encoding {
 
         public byte[] bytes() {
             return bytes;
+        }
+
+        public ByteArray byteArray() {
+            return byteArray;
         }
 
         public Class<?> valueClass() {
@@ -832,7 +852,13 @@ public class Encoding {
                 return prefix;
             }
 
-            public byte[] bytes() { return prefix.bytes(); }
+            public byte[] bytes() {
+                return prefix.bytes();
+            }
+
+            public ByteArray byteArray() {
+                return prefix.byteArray();
+            }
         }
 
         /**
@@ -846,20 +872,29 @@ public class Encoding {
             public static final int LENGTH = 1;
             private final byte key;
             private final byte[] bytes;
+            private final ByteArray byteArray;
 
             Infix(int key) {
                 this.key = unsignedByte(key);
                 bytes = new byte[]{this.key};
+                byteArray = raw(bytes);
             }
 
-            public static Infix of(byte[] key) {
-                if (key[0] == CONTAINED_TYPE.key) return CONTAINED_TYPE;
-                else if (key[0] == CONCLUDED_VERTEX.key) return CONCLUDED_VERTEX;
-                else if (key[0] == CONCLUDED_EDGE_TO.key) return CONCLUDED_EDGE_TO;
+            public static Infix of(ByteArray key) {
+                byte first = key.get(0);
+                if (first == CONTAINED_TYPE.key) return CONTAINED_TYPE;
+                else if (first == CONCLUDED_VERTEX.key) return CONCLUDED_VERTEX;
+                else if (first == CONCLUDED_EDGE_TO.key) return CONCLUDED_EDGE_TO;
                 else throw TypeDBException.of(UNRECOGNISED_VALUE);
             }
 
-            public byte[] bytes() { return bytes; }
+            public byte[] bytes() {
+                return bytes;
+            }
+
+            public ByteArray byteArray() {
+                return byteArray;
+            }
         }
     }
 
@@ -874,16 +909,19 @@ public class Encoding {
 
             private final byte key;
             private final byte[] bytes;
+            private final ByteArray byteArray;
 
             JobType(int key) {
                 this.key = unsignedByte(key);
                 this.bytes = new byte[]{this.key};
+                this.byteArray = raw(bytes);
             }
 
-            public static JobType of(byte[] key) {
+            public static JobType of(ByteArray key) {
                 if (key.length == 1) {
-                    if (key[0] == ATTRIBUTE_VERTEX.key) return ATTRIBUTE_VERTEX;
-                    else if (key[0] == HAS_EDGE.key) return HAS_EDGE;
+                    byte first = key.get(0);
+                    if (first == ATTRIBUTE_VERTEX.key) return ATTRIBUTE_VERTEX;
+                    else if (first == HAS_EDGE.key) return HAS_EDGE;
                     else throw TypeDBException.of(UNRECOGNISED_VALUE);
                 }
                 throw TypeDBException.of(UNRECOGNISED_VALUE);
@@ -895,6 +933,10 @@ public class Encoding {
 
             public byte[] bytes() {
                 return bytes;
+            }
+
+            public ByteArray byteArray() {
+                return byteArray;
             }
         }
 
@@ -907,16 +949,19 @@ public class Encoding {
 
             private final byte key;
             private final byte[] bytes;
+            private final ByteArray byteArray;
 
             JobOperation(int key) {
                 this.key = unsignedByte(key);
                 this.bytes = new byte[]{this.key};
+                this.byteArray = raw(bytes);
             }
 
-            public static JobOperation of(byte[] key) {
+            public static JobOperation of(ByteArray key) {
                 if (key.length == 1) {
-                    if (key[0] == CREATED.key) return CREATED;
-                    else if (key[0] == DELETED.key) return DELETED;
+                    byte first = key.get(0);
+                    if (first == CREATED.key) return CREATED;
+                    else if (first == DELETED.key) return DELETED;
                     else throw TypeDBException.of(UNRECOGNISED_VALUE);
                 }
                 throw TypeDBException.of(UNRECOGNISED_VALUE);
@@ -928,6 +973,10 @@ public class Encoding {
 
             public byte[] bytes() {
                 return bytes;
+            }
+
+            public ByteArray byteArray() {
+                return byteArray;
             }
         }
 
@@ -942,10 +991,12 @@ public class Encoding {
 
             private final byte key;
             private final byte[] bytes;
+            private final ByteArray byteArray;
 
             Infix(int key) {
                 this.key = unsignedByte(key);
                 this.bytes = new byte[]{this.key};
+                this.byteArray = raw(bytes);
             }
 
             public byte key() {
@@ -954,6 +1005,10 @@ public class Encoding {
 
             public byte[] bytes() {
                 return bytes;
+            }
+
+            public ByteArray byteArray() {
+                return byteArray;
             }
         }
     }

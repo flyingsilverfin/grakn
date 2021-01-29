@@ -18,28 +18,29 @@
 
 package com.vaticle.typedb.core.graph.iid;
 
+import grakn.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.graph.common.Encoding;
 
 public class PrefixIID extends IID {
 
     public static final int LENGTH = 1;
 
-    private PrefixIID(byte[] bytes) {
-        super(bytes);
-        assert bytes.length == LENGTH;
+    private PrefixIID(ByteArray byteArray) {
+        super(byteArray);
+        assert byteArray.length() == LENGTH;
     }
 
     public static PrefixIID of(Encoding.Prefix prefix) {
-        return new PrefixIID(prefix.bytes());
+        return new PrefixIID(prefix.byteArray());
     }
 
     public static PrefixIID of(Encoding.Vertex encoding) {
-        return new PrefixIID(encoding.prefix().bytes());
+        return new PrefixIID(encoding.prefix().byteArray());
     }
 
     @Override
     public String toString() {
-        if (readableString == null) readableString = "[" + Encoding.Prefix.of(bytes[0]).toString() + "]";
+        if (readableString == null) readableString = "[" + Encoding.Prefix.of(byteArray().get(0)).toString() + "]";
         return readableString;
     }
 }

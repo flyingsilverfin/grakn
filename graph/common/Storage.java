@@ -18,6 +18,7 @@
 
 package com.vaticle.typedb.core.graph.common;
 
+import grakn.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.ErrorMessage;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
@@ -31,17 +32,17 @@ public interface Storage {
 
     boolean isOpen();
 
-    byte[] get(byte[] key);
+    ByteArray get(ByteArray key);
 
-    byte[] getLastKey(byte[] prefix);
+    ByteArray getLastKey(ByteArray prefix);
 
-    <G> FunctionalIterator<G> iterate(byte[] key, BiFunction<byte[], byte[], G> constructor);
+    <G> FunctionalIterator<G> iterate(ByteArray key, BiFunction<byte[], byte[], G> constructor);
 
     void deleteUntracked(byte[] key);
 
-    void putUntracked(byte[] key);
+    void putUntracked(ByteArray key);
 
-    void putUntracked(byte[] key, byte[] value);
+    void putUntracked(ByteArray key, ByteArray value);
 
     TypeDBException exception(ErrorMessage error);
 

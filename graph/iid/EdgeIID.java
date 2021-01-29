@@ -18,10 +18,11 @@
 
 package com.vaticle.typedb.core.graph.iid;
 
+import grakn.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.graph.common.Encoding;
 
-import static com.vaticle.typedb.core.common.collection.Bytes.join;
-import static java.util.Arrays.copyOfRange;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
+import static grakn.core.common.bytes.ByteArray.slice;
 
 public abstract class EdgeIID<
         EDGE_ENCODING extends Encoding.Edge,
@@ -35,8 +36,8 @@ public abstract class EdgeIID<
     SuffixIID suffix;
     private int endIndex, infixIndex, suffixIndex;
 
-    EdgeIID(byte[] bytes) {
-        super(bytes);
+    EdgeIID(ByteArray byteArray) {
+        super(byteArray);
     }
 
     public abstract EDGE_INFIX infix();
@@ -46,17 +47,17 @@ public abstract class EdgeIID<
     public abstract VERTEX_IID_END end();
 
     int infixIndex() {
-        if (infixIndex == 0) infixIndex = start().bytes.length;
+        if (infixIndex == 0) infixIndex = start().byteArray().length();
         return infixIndex;
     }
 
     int endIndex() {
-        if (endIndex == 0) endIndex = infixIndex() + infix().bytes.length;
+        if (endIndex == 0) endIndex = infixIndex() + infix().byteArray().length();
         return endIndex;
     }
 
     int suffixIndex() {
-        if (suffixIndex == 0) suffixIndex = endIndex() + end().bytes.length;
+        if (suffixIndex == 0) suffixIndex = endIndex() + end().byteArray().length();
         return suffixIndex;
     }
 
@@ -72,86 +73,86 @@ public abstract class EdgeIID<
     @Override
     public String toString() {
         if (readableString == null) {
-            readableString = "[" + start().bytes.length + ": " + start().toString() + "]" +
+            readableString = "[" + start().byteArray().length() + ": " + start().toString() + "]" +
                     "[" + infix().length() + ": " + infix().toString() + "]" +
-                    "[" + end().bytes.length + ": " + end().toString() + "]";
+                    "[" + end().byteArray().length() + ": " + end().toString() + "]";
         }
         return readableString;
     }
 
     public static class Type extends EdgeIID<Encoding.Edge.Type, InfixIID.Type, VertexIID.Type, VertexIID.Type> {
 
-        Type(byte[] bytes) {
-            super(bytes);
+        Type(ByteArray byteArray) {
+            super(byteArray);
         }
 
-        public static Type of(byte[] bytes) {
-            return new Type(bytes);
+        public static Type of(ByteArray byteArray) {
+            return new Type(byteArray);
         }
 
         public static Type of(VertexIID.Type start, Encoding.Infix infix, VertexIID.Type end) {
-            return new Type(join(start.bytes, infix.bytes(), end.bytes));
+            return new Type(join(start.byteArray(), infix.byteArray(), end.byteArray()));
         }
 
         @Override
         public InfixIID.Type infix() {
-            if (infix == null) infix = InfixIID.Type.extract(bytes, VertexIID.Type.LENGTH);
+            if (infix == null) infix = InfixIID.Type.extract(byteArray(), VertexIID.Type.LENGTH);
             return infix;
         }
 
         @Override
         public VertexIID.Type start() {
-            if (start == null) start = VertexIID.Type.of(copyOfRange(bytes, 0, VertexIID.Type.LENGTH));
+            if (start == null) start = VertexIID.Type.of(slice(byteArray(), 0, VertexIID.Type.LENGTH));
             return start;
         }
 
         @Override
         public VertexIID.Type end() {
             if (end != null) return end;
-            end = VertexIID.Type.of(copyOfRange(bytes, bytes.length - VertexIID.Type.LENGTH, bytes.length));
+            end = VertexIID.Type.of(slice(byteArray(), byteArray().length() - VertexIID.Type.LENGTH, VertexIID.Type.LENGTH));
             return end;
         }
     }
 
     public static class Thing extends EdgeIID<Encoding.Edge.Thing, InfixIID.Thing, VertexIID.Thing, VertexIID.Thing> {
 
-        Thing(byte[] bytes) {
-            super(bytes);
+        Thing(ByteArray byteArray) {
+            super(byteArray);
         }
 
-        public static Thing of(byte[] bytes) {
-            return new Thing(bytes);
+        public static Thing of(ByteArray byteArray) {
+            return new Thing(byteArray);
         }
 
         public static Thing of(VertexIID.Thing start, InfixIID.Thing infix, VertexIID.Thing end) {
-            return new Thing(join(start.bytes(), infix.bytes(), end.bytes()));
+            return new Thing(join(start.byteArray(), infix.byteArray(), end.byteArray()));
         }
 
         public static Thing of(VertexIID.Thing start, InfixIID.Thing infix, VertexIID.Thing end, SuffixIID suffix) {
-            return new Thing(join(start.bytes(), infix.bytes(), end.bytes(), suffix.bytes()));
+            return new Thing(join(start.byteArray(), infix.byteArray(), end.byteArray(), suffix.byteArray()));
         }
 
         @Override
         public InfixIID.Thing infix() {
-            if (infix == null) infix = InfixIID.Thing.extract(bytes, infixIndex());
+            if (infix == null) infix = InfixIID.Thing.extract(byteArray(), infixIndex());
             return infix;
         }
 
         public SuffixIID suffix() {
-            if (suffix == null) suffix = SuffixIID.of(copyOfRange(bytes, suffixIndex(), bytes.length));
+            if (suffix == null) suffix = SuffixIID.of(slice(byteArray(), suffixIndex(), byteArray().length() - suffixIndex()));
             return suffix;
         }
 
         @Override
         public VertexIID.Thing start() {
-            if (start == null) start = VertexIID.Thing.extract(bytes, 0);
+            if (start == null) start = VertexIID.Thing.extract(byteArray(), 0);
 
             return start;
         }
 
         @Override
         public VertexIID.Thing end() {
-            if (end == null) end = VertexIID.Thing.extract(bytes, endIndex());
+            if (end == null) end = VertexIID.Thing.extract(byteArray(), endIndex());
             return end;
         }
 
@@ -160,7 +161,7 @@ public abstract class EdgeIID<
             if (readableString == null) {
                 readableString = super.toString();
                 if (!suffix().isEmpty()) {
-                    readableString += "[" + suffix().bytes.length + ": " + suffix().toString() + "]";
+                    readableString += "[" + suffix().byteArray().length() + ": " + suffix().toString() + "]";
                 }
             }
             return readableString;
@@ -172,16 +173,16 @@ public abstract class EdgeIID<
         private VertexIID.Type start;
         private VertexIID.Thing end;
 
-        InwardsISA(byte[] bytes) {
-            super(bytes);
+        InwardsISA(ByteArray byteArray) {
+            super(byteArray);
         }
 
-        public static InwardsISA of(byte[] bytes) {
-            return new InwardsISA(bytes);
+        public static InwardsISA of(ByteArray byteArray) {
+            return new InwardsISA(byteArray);
         }
 
         public static InwardsISA of(VertexIID.Type start, VertexIID.Thing end) {
-            return new InwardsISA(join(start.bytes, Encoding.Edge.ISA.in().bytes(), end.bytes));
+            return new InwardsISA(join(start.byteArray(), Encoding.Edge.ISA.in().byteArray(), end.byteArray()));
         }
 
         @Override
@@ -192,14 +193,16 @@ public abstract class EdgeIID<
         @Override
         public VertexIID.Type start() {
             if (start != null) return start;
-            start = VertexIID.Type.of(copyOfRange(bytes, 0, VertexIID.Type.LENGTH));
+            start = VertexIID.Type.of(slice(byteArray(), 0, VertexIID.Type.LENGTH));
             return start;
         }
 
         @Override
         public VertexIID.Thing end() {
             if (end != null) return end;
-            end = VertexIID.Thing.of(copyOfRange(bytes, VertexIID.Type.LENGTH + 1, bytes.length));
+            end = VertexIID.Thing.of(slice(byteArray(),
+                    VertexIID.Type.LENGTH + 1,
+                    byteArray().length() - (VertexIID.Type.LENGTH + 1)));
             return end;
         }
     }

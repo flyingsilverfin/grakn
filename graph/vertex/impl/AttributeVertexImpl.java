@@ -96,7 +96,7 @@ public abstract class AttributeVertexImpl<VALUE> extends ThingVertexImpl impleme
     }
 
     void deleteVertexFromIndex() {
-        graph.storage().deleteUntracked(index().bytes());
+        graph.storage().deleteUntracked(index().byteArray());
     }
 
     @Override
@@ -129,9 +129,9 @@ public abstract class AttributeVertexImpl<VALUE> extends ThingVertexImpl impleme
 
     private void commitVertex() {
         if (!isPersisted()) {
-            graph.storage().putUntracked(attributeIID.bytes());
-            graph.storage().putUntracked(EdgeIID.InwardsISA.of(type().iid(), iid).bytes());
-            graph.storage().putUntracked(index().bytes(), attributeIID.bytes());
+            graph.storage().putUntracked(attributeIID.byteArray());
+            graph.storage().putUntracked(EdgeIID.InwardsISA.of(type().iid(), iid).byteArray());
+            graph.storage().putUntracked(index().byteArray(), attributeIID.byteArray());
         }
         graph.setModified(iid);
         // TODO: we should make use of attribute indexes to look up attributes by value (without type) quickly
