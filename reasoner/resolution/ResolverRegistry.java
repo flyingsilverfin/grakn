@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -91,11 +92,12 @@ public class ResolverRegistry {
                 explanations)));
     }
 
-    public Actor<RootResolver> createRoot(Conjunction pattern, Consumer<ResolutionAnswer> onAnswer, Consumer<Integer> onExhausted) {
+    public Actor<RootResolver> createRoot(Conjunction pattern, Set<Reference.Name> filter,
+                                          Consumer<ResolutionAnswer> onAnswer, Consumer<Integer> onExhausted) {
         LOG.debug("Creating RootResolver for pattern: '{}'", pattern);
         return Actor.create(
                 elg, self -> new RootResolver(
-                        self, pattern, onAnswer, onExhausted, resolutionRecorder, this, traversalEngine,
+                        self, pattern, filter, onAnswer, onExhausted, resolutionRecorder, this, traversalEngine,
                         conceptMgr, logicMgr, planner, explanations));
     }
     // for testing

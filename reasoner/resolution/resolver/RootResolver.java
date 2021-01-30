@@ -39,6 +39,7 @@ import grakn.core.reasoner.resolution.framework.Resolver;
 import grakn.core.reasoner.resolution.framework.Response;
 import grakn.core.reasoner.resolution.framework.ResponseProducer;
 import grakn.core.traversal.TraversalEngine;
+import graql.lang.pattern.variable.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,6 +66,7 @@ public class RootResolver extends Resolver<RootResolver> {
     private final ConceptManager conceptMgr;
     private final LogicManager logicMgr;
     private final Conjunction conjunction;
+    private final Set<Reference.Name> filter;
     private final Planner planner;
     private final Actor<ResolutionRecorder> resolutionRecorder;
     private final Consumer<ResolutionAnswer> onAnswer;
@@ -74,11 +76,12 @@ public class RootResolver extends Resolver<RootResolver> {
     private ResponseProducer responseProducer;
     private final Map<Resolvable, AlphaEquivalentResolver> downstreamResolvers;
 
-    public RootResolver(Actor<RootResolver> self, Conjunction conjunction, Consumer<ResolutionAnswer> onAnswer,
+    public RootResolver(Actor<RootResolver> self, Conjunction conjunction, Set<Reference.Name> filter, Consumer<ResolutionAnswer> onAnswer,
                         Consumer<Integer> onExhausted, Actor<ResolutionRecorder> resolutionRecorder, ResolverRegistry registry,
                         TraversalEngine traversalEngine, ConceptManager conceptMgr, LogicManager logicMgr, Planner planner, boolean explanations) {
         super(self, RootResolver.class.getSimpleName() + "(pattern:" + conjunction + ")", registry, traversalEngine, explanations);
         this.conjunction = conjunction;
+        this.filter = filter;
         this.onAnswer = onAnswer;
         this.onExhausted = onExhausted;
         this.resolutionRecorder = resolutionRecorder;
@@ -127,7 +130,8 @@ public class RootResolver extends Resolver<RootResolver> {
 
         ConceptMap conceptMap = fromDownstream.answer().derived().withInitial();
         if (fromDownstream.planIndex() == plan.size() - 1) {
-            if (!responseProducer.hasProduced(conceptMap)) {
+            ConceptMap filteredMap = conceptMap.filter(filter);
+            if (!responseProducer.hasProduced(filteredMap)) {
                 responseProducer.recordProduced(conceptMap);
                 ResolutionAnswer answer = new ResolutionAnswer(fromDownstream.answer().derived(),
                                                                conjunction.toString(), derivation, self(),

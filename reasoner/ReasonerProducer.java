@@ -25,11 +25,16 @@ import grakn.core.reasoner.resolution.ResolverRegistry;
 import grakn.core.reasoner.resolution.framework.Request;
 import grakn.core.reasoner.resolution.framework.ResolutionAnswer;
 import grakn.core.reasoner.resolution.resolver.RootResolver;
+import grakn.core.traversal.common.Identifier;
+import graql.lang.pattern.variable.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.ThreadSafe;
+import java.util.List;
+import java.util.Set;
 
+import static grakn.core.common.iterator.Iterators.iterate;
 import static grakn.core.reasoner.resolution.answer.AnswerState.DownstreamVars.Root;
 import static grakn.core.reasoner.resolution.framework.ResolutionAnswer.Derivation.EMPTY;
 
@@ -37,6 +42,7 @@ import static grakn.core.reasoner.resolution.framework.ResolutionAnswer.Derivati
 public class ReasonerProducer implements Producer<ConceptMap> {
     private static final Logger LOG = LoggerFactory.getLogger(ReasonerProducer.class);
 
+    private final Set<Reference.Name> filter;
     private final Actor<RootResolver> rootResolver;
     private Queue<ConceptMap> queue;
     private Request resolveRequest;
@@ -44,12 +50,15 @@ public class ReasonerProducer implements Producer<ConceptMap> {
     private boolean done;
     private int iteration;
 
-    public ReasonerProducer(Conjunction conjunction, ResolverRegistry resolverMgr) {
-        this.rootResolver = resolverMgr.createRoot(conjunction, this::requestAnswered, this::requestExhausted);
+    public ReasonerProducer(Conjunction conjunction, List<Identifier.Variable.Name> filter, ResolverRegistry resolverMgr) {
+        Set<Reference.Name> filterSet = iterate(filter).map(Identifier.Variable.Name::reference).toSet();
+        this.rootResolver = resolverMgr.createRoot(conjunction, filterSet, this::requestAnswered, this::requestExhausted);
         this.resolveRequest = Request.create(new Request.Path(rootResolver), Root.create(), EMPTY);
         this.queue = null;
         this.iteration = 0;
         this.done = false;
+        // TODO this is ugly AF because we filter both in the root and here. For testing only
+        this.filter = filterSet;
     }
 
     @Override
@@ -66,7 +75,7 @@ public class ReasonerProducer implements Producer<ConceptMap> {
 
     private void requestAnswered(ResolutionAnswer answer) {
         if (answer.isInferred()) iterationInferredAnswer = true;
-        queue.put(answer.derived().withInitial());
+        queue.put(answer.derived().withInitial().filter(filter));
     }
 
     private void requestExhausted(int iteration) {

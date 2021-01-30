@@ -105,7 +105,7 @@ public class Reasoner {
         Producer<ConceptMap> producer;
         Conjunction conj = logicMgr.typeResolver().resolve(conjunction);
         if (conj.isSatisfiable()) {
-            if (isInfer(context)) producer = resolve(conj);
+            if (isInfer(context)) producer = resolve(conj, filter);
             else producer = traversalEng.producer(conj.traversal(filter), context.producer(), PARALLELISATION_FACTOR)
                     .map(conceptMgr::conceptMap);
         } else if (!filter.isEmpty() && iterate(filter).anyMatch(id -> conj.variable(id).isThing()) ||
@@ -134,7 +134,7 @@ public class Reasoner {
         ResourceIterator<ConceptMap> answers;
         Conjunction conj = logicMgr.typeResolver().resolve(conjunction);
         if (conj.isSatisfiable()) {
-            if (isInfer(context)) answers = produce(resolve(conj), context.producer());
+            if (isInfer(context)) answers = produce(resolve(conj, filter), context.producer());
             else answers = traversalEng.iterator(conjunction.traversal(filter)).map(conceptMgr::conceptMap);
         } else if (!filter.isEmpty() && iterate(filter).anyMatch(id -> conj.variable(id).isThing()) ||
                 iterate(conjunction.variables()).anyMatch(Variable::isThing)) {
@@ -169,5 +169,13 @@ public class Reasoner {
             }
         });
         return newClone;
+    }
+
+    ResolverRegistry resolverRegistry() {
+        return resolverRegistry;
+    }
+
+    private Producer<ConceptMap> resolve(Conjunction conjunction, List<Identifier.Variable.Name> filter) {
+        return new ReasonerProducer(conjunction, filter, resolverRegistry);
     }
 }

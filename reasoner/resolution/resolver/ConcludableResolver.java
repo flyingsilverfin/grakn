@@ -183,7 +183,7 @@ public class ConcludableResolver extends ResolvableResolver<ConcludableResolver>
         Actor<RootResolver> root = request.path().root();
         assert iterationStates.containsKey(root);
         IterationState iterationState = iterationStates.get(root);
-        if (iterationState.iteration() > newIteration) {
+        if (iterationState.iteration() < newIteration) {
             iterationState.nextIteration(newIteration);
         }
 
