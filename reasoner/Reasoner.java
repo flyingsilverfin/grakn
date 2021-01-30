@@ -75,14 +75,6 @@ public class Reasoner {
         );
     }
 
-    ResolverRegistry resolverRegistry() {
-        return resolverRegistry;
-    }
-
-    private Producer<ConceptMap> resolve(Conjunction conjunction) {
-        return new ReasonerProducer(conjunction, resolverRegistry);
-    }
-
     private boolean isInfer(Context.Query context) {
         return context.options().infer() && !context.transactionType().isWrite() && logicMgr.rules().hasNext();
     }

@@ -36,7 +36,7 @@ import static grakn.core.common.exception.ErrorMessage.Internal.GRAKN_CLOSED;
 
 public class RocksGrakn implements Grakn {
 
-    private static final int MAX_THREADS = Runtime.getRuntime().availableProcessors();
+    private static final int MAX_THREADS = 1; //Runtime.getRuntime().availableProcessors();
 
     static {
         RocksDB.loadLibrary();

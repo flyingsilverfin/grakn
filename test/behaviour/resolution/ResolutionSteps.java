@@ -75,6 +75,7 @@ public class ResolutionSteps {
         Grakn.Transaction tx = reasonedDbTxn();
         answers = tx.query().match(queryToTest).toSet();
         resultCount = answers.size();
+        System.out.println(answers);
         if (expectedCount != resultCount) {
             String msg = String.format("Query had an incorrect number of answers. Expected [%d] answers, " +
                                                "but found [%d] answers, for query :\n %s", expectedCount, resultCount, queryToTest);
