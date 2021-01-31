@@ -310,6 +310,7 @@ public class GraphIterator extends AbstractResourceIterator<VertexMap> {
     }
 
     private void removeScopedRole(Scopes.Scoped scoped, ProcedureEdge<?, ?> edge) {
+        // TODO using `edge.to()` as the identifier of scoped role may not always work... if `to()` is pointed to by many roles
         ThingVertex previousRole = roles.remove(edge.to().id());
         if (previousRole != null) scoped.remove(previousRole, edge.order());
     }
