@@ -94,10 +94,7 @@ public class Rule {
         this.when = whenPattern(structure.when(), logicMgr);
         this.then = thenPattern(structure.then(), logicMgr);
         pruneThenResolvedTypes();
-        validateSatisfiable();
-        validateInsertable(logicMgr);
         this.conclusion = Conclusion.create(this.then);
-        validateCycles();
     }
 
     private Rule(GraphManager graphMgr, LogicManager logicMgr, String label,
