@@ -40,12 +40,18 @@ public class BaseProducer<T> implements Producer<T> {
 
     @Override
     public synchronized void produce(Queue<T> queue, int request, ExecutorService executor) {
+        System.out.println("BaseProducer isDone(): " + isDone.get());
         if (isDone.get()) return;
         future = future.thenRunAsync(() -> {
+            System.out.println("Running async in BaseProducer");
             try {
                 int unfulfilled = request;
-                for (; unfulfilled > 0 && iterator.hasNext() && !isDone.get(); unfulfilled--)
+                System.out.println("starting loop");
+                for (; unfulfilled > 0 && iterator.hasNext() && !isDone.get(); unfulfilled--) {
+                    System.out.println("in loop");
                     queue.put(iterator.next());
+                }
+                System.out.println("Done with for loop in baseProducer");
                 if (unfulfilled > 0 && !isDone.get()) done(queue);
             } catch (Throwable e) {
                 queue.done(e);

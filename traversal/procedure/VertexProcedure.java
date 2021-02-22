@@ -90,8 +90,6 @@ public class VertexProcedure implements Procedure {
     @Override
     public Producer<VertexMap> producer(GraphManager graphMgr, Traversal.Parameters params,
                                         Set<Identifier.Variable.Retrievable> filter, int parallelisation) {
-        LOG.debug(params.toString());
-        LOG.debug(this.toString());
         return async(iterator(graphMgr, params, filter));
     }
 
@@ -102,11 +100,18 @@ public class VertexProcedure implements Procedure {
         LOG.debug(this.toString());
         assert vertex.id().isRetrievable() && filter.contains(vertex.id().asVariable().asRetrievable());
         ResourceIterator<? extends Vertex<?, ?>> iterator = vertex.iterator(graphMgr, params);
+        System.out.println("Opened iterator");
         for (ProcedureEdge<?, ?> e : vertex.outs()) {
-            iterator = iterator.filter(v -> e.isClosure(graphMgr, v, v, params));
+            iterator = iterator.filter(v -> {
+                System.out.println("Vertex: " + v);
+                return e.isClosure(graphMgr, v, v, params);
+            });
         }
 
-        return iterator.map(v -> VertexMap.of(map(pair(vertex.id().asVariable().asRetrievable(), v)))).distinct();
+        return iterator.map(v -> {
+            System.out.println("Iterating vertex: " + v);
+            return VertexMap.of(map(pair(vertex.id().asVariable().asRetrievable(), v)));
+        }).distinct();
     }
 
 }

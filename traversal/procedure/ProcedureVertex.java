@@ -221,7 +221,10 @@ public abstract class ProcedureVertex<
             Optional<Predicate.Value<?>> eq = iterate(props().predicates()).filter(p -> p.operator().equals(EQ)).first();
             if (eq.isPresent()) iter = iteratorOfAttributesWithTypes(graphMgr, parameters, eq.get());
             else iter = iterate(props().types().iterator())
-                    .map(l -> assertTypeNotNull(graphMgr.schema().getType(l), l))
+                    .map(l -> {
+                        System.out.println("iterateAndFilterFromTypes, has type: " + l);
+                        return assertTypeNotNull(graphMgr.schema().getType(l), l);
+                    })
                     .flatMap(t -> graphMgr.data().get(t));
 
             if (id().isVariable()) iter = filterReferableThings(iter);
