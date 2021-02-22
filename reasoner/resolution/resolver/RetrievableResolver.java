@@ -128,9 +128,5 @@ public class RetrievableResolver extends Resolver<RetrievableResolver> {
         }
     }
 
-    @Override
-    protected void exception(Throwable e) {
-        LOG.error("Actor exception", e);
-    }
 
 }
