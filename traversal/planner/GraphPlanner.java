@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.google.ortools.linearsolver.MPSolver.ResultStatus.ABNORMAL;
@@ -126,7 +127,7 @@ public class GraphPlanner implements Planner {
         if (procedure == null) {
             assert isOptimising.get();
             try {
-                procedureLatch.await();
+                procedureLatch.await(1000, TimeUnit.MILLISECONDS);
                 assert procedure != null;
             } catch (InterruptedException e) {
                 throw GraknException.of(e);
