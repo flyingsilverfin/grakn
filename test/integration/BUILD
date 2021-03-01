@@ -66,6 +66,7 @@ host_compatible_java_test(
     resources = [
         "//common/test:logback"
     ],
+    size = "enormous",
     resource_strip_prefix = "common/test",
 )
 

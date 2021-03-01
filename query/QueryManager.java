@@ -54,12 +54,14 @@ public class QueryManager {
     private final Reasoner reasoner;
     private final ConceptManager conceptMgr;
     private final Context.Query defaultContext;
+    private Context.Transaction transactionContext;
 
     public QueryManager(ConceptManager conceptMgr, LogicManager logicMgr, Reasoner reasoner, Context.Transaction context) {
         this.conceptMgr = conceptMgr;
         this.logicMgr = logicMgr;
         this.reasoner = reasoner;
-        this.defaultContext = new Context.Query(context, new Options.Query());
+        transactionContext = context;
+        this.defaultContext = new Context.Query(this.transactionContext, new Options.Query());
     }
 
     public FunctionalIterator<ConceptMap> match(GraqlMatch query) {
@@ -69,6 +71,14 @@ public class QueryManager {
     public FunctionalIterator<ConceptMap> match(GraqlMatch query, Context.Query context) {
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "match")) {
             return Matcher.create(reasoner, query, context).execute().onError(conceptMgr::exception);
+        } catch (Exception exception) {
+            throw conceptMgr.exception(exception);
+        }
+    }
+
+    public ResourceIterator<ConceptMap> match(GraqlMatch query, Options.Query options) {
+        try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "match")) {
+            return Matcher.create(reasoner, query, new Context.Query(this.transactionContext, options)).execute().onError(conceptMgr::exception);
         } catch (Exception exception) {
             throw conceptMgr.exception(exception);
         }

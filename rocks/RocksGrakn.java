@@ -41,7 +41,7 @@ import static grakn.core.common.exception.ErrorMessage.Internal.GRAKN_CLOSED;
 public class RocksGrakn implements Grakn {
 
     private static final Logger LOG = LoggerFactory.getLogger(RocksGrakn.class);
-    private static final int MAX_THREADS = Runtime.getRuntime().availableProcessors();
+    private static final int MAX_THREADS =  2; //Runtime.getRuntime().availableProcessors();
 
     static {
         RocksDB.loadLibrary();

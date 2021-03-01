@@ -21,6 +21,7 @@ package grakn.core.test.integration;
 import grakn.core.Grakn;
 import grakn.core.common.iterator.FunctionalIterator;
 import grakn.core.common.parameters.Arguments;
+import grakn.core.common.parameters.Options;
 import grakn.core.common.parameters.Options.Database;
 import grakn.core.concept.answer.ConceptMap;
 import grakn.core.concept.thing.Attribute;
@@ -43,6 +44,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static grakn.core.test.integration.util.Util.assertNotNulls;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -58,6 +61,55 @@ public class QueryTest {
     private static final Path logDir = dataDir.resolve("logs");
     private static final Database options = new Database().dataDir(dataDir).logsDir(logDir);
     private static String database = "query-test";
+
+
+    @Test
+    public void test_performance() throws IOException {
+        Util.resetDirectory(dataDir);
+
+        try (Grakn grakn = RocksGrakn.open(options)) {
+            grakn.databases().create(database);
+
+            try (Grakn.Session session = grakn.session(database, Arguments.Session.Type.SCHEMA)) {
+                try (Grakn.Transaction transaction = session.transaction(Arguments.Transaction.Type.WRITE)) {
+                    GraqlDefine query = Graql.parseQuery(new String(Files.readAllBytes(Paths.get("test/integration/schema.gql")), UTF_8));
+                    transaction.query().define(query);
+                    transaction.commit();
+                }
+            }
+            try (Grakn.Session sess = grakn.session(database, Arguments.Session.Type.DATA)) {
+                for (int i = 0; i < 10_000; i++) {
+                    if (i % 1000 == 0) System.out.println("1000 inserts done");
+                    try (Grakn.Transaction tx = sess.transaction(Arguments.Transaction.Type.WRITE)) {
+                        tx.query().insert(Graql.parseQuery("insert $x isa organisation, has name \"org-" + i + "\" ;" +
+                                                                   "$y isa team, has symbol \"s-y-" + i + "\";" +
+                                                                   "$z isa team, has symbol \"s-z-" + i + "\";" +
+                                                                   "$a isa team, has symbol \"s-a-" + i + "\";" +
+                                                                   "$b isa team, has symbol \"s-b-" + i + "\";" +
+                                                                   "(org:$x, team:$y) isa org-team;" +
+                                                                   "(org:$x, team:$z) isa org-team;" +
+                                                                   "(org:$x, team:$a) isa org-team;" +
+                                                                   "(org:$x, team:$b) isa org-team;"
+                        ));
+                        tx.commit();
+                    }
+                }
+
+                try (Grakn.Transaction tx = sess.transaction(Arguments.Transaction.Type.WRITE)) {
+                    Instant start = Instant.now();
+                    FunctionalIterator<ConceptMap> answers = tx.query().match(Graql.parseQuery("match $x isa organisation, has attribute $a; ($x, $y) isa relation; $y has attribute $b;").asMatch());
+                    int num = answers.toList().size();
+                    System.out.println("parallel retrieved: " + num + " in (ms): " + (start.until(Instant.now(), ChronoUnit.MILLIS)));
+                }
+                try (Grakn.Transaction tx = sess.transaction(Arguments.Transaction.Type.WRITE)) {
+                    Instant start = Instant.now();
+                    FunctionalIterator<ConceptMap> answers = tx.query().match(Graql.parseQuery("match $x isa organisation, has attribute $a; ($x, $y) isa relation; $y has attribute $b;").asMatch(), (new Options.Query()).parallel(false));
+                    int num = answers.toList().size();
+                    System.out.println("synchronous retrieved: " + num + " in (ms): " + (start.until(Instant.now(), ChronoUnit.MILLIS)));
+                }
+            }
+        }
+    }
 
     @Test
     public void test_query_define() throws IOException {
