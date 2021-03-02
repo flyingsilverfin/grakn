@@ -76,7 +76,7 @@ public class QueryManager {
         }
     }
 
-    public ResourceIterator<ConceptMap> match(GraqlMatch query, Options.Query options) {
+    public FunctionalIterator<ConceptMap> match(GraqlMatch query, Options.Query options) {
         try (ThreadTrace ignored = traceOnThread(TRACE_PREFIX + "match")) {
             return Matcher.create(reasoner, query, new Context.Query(this.transactionContext, options)).execute().onError(conceptMgr::exception);
         } catch (Exception exception) {
