@@ -35,4 +35,15 @@
     <logger name="grakn.core" level="DEBUG">
         <appender-ref ref="STDOUT"/>
     </logger>
+
+    <logger name="grakn.core.traversal" level="INFO">
+        <appender-ref ref="LOGFILE"/>
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
+    <logger name="grakn.core.reasoner" level="INFO">
+        <appender-ref ref="LOGFILE"/>
+        <appender-ref ref="STDOUT"/>
+    </logger>
+
 </configuration>

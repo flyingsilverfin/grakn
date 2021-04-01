@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static grakn.core.common.exception.ErrorMessage.Internal.ILLEGAL_STATE;
 import static grakn.core.common.exception.ErrorMessage.Internal.RESOURCE_CLOSED;
@@ -105,7 +106,13 @@ public abstract class Resolver<RESOLVER extends Resolver<RESOLVER>> extends Acto
         return requestRouter.get(toDownstream);
     }
 
+    private static AtomicLong counter = new AtomicLong();
+
     protected void requestFromDownstream(Request request, Request fromUpstream, int iteration) {
+        if (counter.incrementAndGet() % 1000 == 0) {
+            System.out.println("Total messages: " + counter);
+        };
+
         LOG.trace("{} : Sending a new answer Request to downstream: {}", name(), request);
         if (resolutionTracing) ResolutionTracer.get().request(this.name(), request.receiver().name(), iteration,
                                                               request.partialAnswer().conceptMap().concepts().keySet().toString());

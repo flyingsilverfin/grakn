@@ -19,6 +19,33 @@ load("@graknlabs_dependencies//tool/checkstyle:rules.bzl", "checkstyle_test")
 load("@graknlabs_dependencies//builder/java:rules.bzl", "host_compatible_java_test")
 
 host_compatible_java_test(
+    name = "test-debug",
+    srcs = ["ExternalDebugTest.java"],
+    test_class = "grakn.core.reasoner.ExternalDebugTest",
+    native_libraries_deps = [
+        "//rocks:rocks",
+        "//logic:logic",
+        "//:grakn",
+        "//concept:concept",
+    ],
+    deps = [
+        # Internal dependencies
+        "//test/integration/util:util",
+        "//common:common",
+        "//concurrent:concurrent",
+
+        # External dependencies from Grakn Labs
+        "@graknlabs_common//:common",
+        "@graknlabs_graql//java:graql",
+    ],
+    resources = [
+        "//common/test:logback-test"
+    ],
+    resource_strip_prefix = "common/test",
+)
+
+
+host_compatible_java_test(
     name = "test-reasoner",
     srcs = ["ReasonerTest.java"],
     test_class = "grakn.core.reasoner.ReasonerTest",

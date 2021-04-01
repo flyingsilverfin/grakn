@@ -56,8 +56,11 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static grakn.common.collection.Collections.list;
 import static grakn.common.collection.Collections.set;
@@ -551,8 +554,19 @@ public class Rule {
                 return relation;
             }
 
+            ConcurrentHashMap<Set<RolePlayer>, Long> seen = new ConcurrentHashMap<>();
+            AtomicLong counter = new AtomicLong(0);
+
             private FunctionalIterator<grakn.core.concept.thing.Relation> matchRelation(RelationType relationType, Set<RolePlayer> players,
                                                                                         TraversalEngine traversalEng, ConceptManager conceptMgr) {
+                seen.compute(players, (key, oldValue) -> {
+                    if (oldValue == null) return 1L;
+                    else return oldValue + 1;
+                });
+                if (counter.incrementAndGet() % 100 == 0) {
+                    System.out.println("1000 Conclusion.Relation.matchRelation: seen players: " + seen.values());
+                }
+
                 Traversal traversal = new Traversal();
                 Identifier.Variable.Retrievable relationId = relation().owner().id();
                 traversal.types(relationId, set(relationType.getLabel()));
@@ -600,6 +614,23 @@ public class Rule {
                     playerIdentifier = Identifier.Variable.of(rp.player().reference().asName());
                     player = whenConcepts.get(rp.player().reference().asName()).asThing();
                     repetition = rp.repetition();
+                }
+
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) return true;
+                    if (o == null || getClass() != o.getClass()) return false;
+                    final RolePlayer that = (RolePlayer) o;
+                    return repetition == that.repetition &&
+                            Objects.equals(roleTypeIdentifier, that.roleTypeIdentifier) &&
+                            Objects.equals(roleType, that.roleType) &&
+                            Objects.equals(playerIdentifier, that.playerIdentifier) &&
+                            Objects.equals(player, that.player);
+                }
+
+                @Override
+                public int hashCode() {
+                    return Objects.hash(roleTypeIdentifier, roleType, playerIdentifier, player, repetition);
                 }
             }
 

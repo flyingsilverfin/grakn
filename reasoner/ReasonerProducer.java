@@ -181,8 +181,11 @@ public class ReasonerProducer implements Producer<ConceptMap> {
         requestAnswer();
     }
 
+    long requested = 0;
     private void requestAnswer() {
         if (options.traceInference()) ResolutionTracer.get().start();
         rootResolver.execute(actor -> actor.receiveRequest(resolveRequest, iteration));
+        requested++;
+        System.out.println("ReasonerProducer requested: " + requested);
     }
 }
