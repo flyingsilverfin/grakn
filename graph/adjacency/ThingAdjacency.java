@@ -177,6 +177,6 @@ public interface ThingAdjacency {
 
         FunctionalIterator<ThingVertex> to();
 
-        FunctionalIterator.Sorted<ThingEdge, ThingVertex> get();
+        FunctionalIterator.Sorted<ThingEdge> get();
     }
 }
