@@ -171,7 +171,9 @@ public abstract class RocksStorage implements Storage {
             try {
                 deleteCloseSchemaWriteLock.readLock().lock();
                 if (!isOpen()) throw TypeDBException.of(RESOURCE_CLOSED);
-                return raw(storageTransaction.get(readOptions, key.bytes()));
+                byte[] bytes = storageTransaction.get(readOptions, key.bytes());
+                if (bytes == null) return null;
+                else return raw(bytes);
             } catch (RocksDBException e) {
                 throw exception(e);
             } finally {

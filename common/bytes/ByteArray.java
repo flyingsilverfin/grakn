@@ -20,7 +20,6 @@ package  com.vaticle.typedb.core.common.bytes;
 
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

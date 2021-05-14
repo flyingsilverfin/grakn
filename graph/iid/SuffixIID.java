@@ -18,7 +18,6 @@
 
 package com.vaticle.typedb.core.graph.iid;
 
-
 import com.vaticle.typedb.core.common.bytes.ByteArray;
 
 import java.util.Arrays;

@@ -18,12 +18,10 @@
 
 package com.vaticle.typedb.core.rocks;
 
-import com.vaticle.typedb.common.collection.Collections;
 import com.vaticle.typedb.common.collection.Pair;
 import com.vaticle.typedb.common.concurrent.NamedThreadFactory;
 import com.vaticle.typedb.core.TypeDB;
 import com.vaticle.typedb.core.common.bytes.ByteArray;
-import com.vaticle.typedb.core.common.exception.ErrorMessage;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.parameters.Arguments;
 import com.vaticle.typedb.core.common.parameters.Options;
@@ -40,7 +38,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
