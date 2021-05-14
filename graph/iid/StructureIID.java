@@ -17,13 +17,13 @@
 
 package com.vaticle.typedb.core.graph.iid;
 
-import grakn.core.common.bytes.ByteArray;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.graph.common.Encoding;
 import com.vaticle.typedb.core.graph.common.KeyGenerator;
 
 import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
 import static com.vaticle.typedb.core.common.bytes.ByteArray.slice;
-import static grakn.core.common.bytes.Bytes.sortedByteArrayToShort;
+import static com.vaticle.typedb.core.common.bytes.Bytes.sortedByteArrayToShort;
 
 public abstract class StructureIID extends IID {
 

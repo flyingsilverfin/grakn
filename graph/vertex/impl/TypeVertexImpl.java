@@ -18,6 +18,7 @@
 
 package com.vaticle.typedb.core.graph.vertex.impl;
 
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
 import com.vaticle.typedb.core.common.parameters.Label;
 import com.vaticle.typedb.core.graph.TypeGraph;
@@ -34,7 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
-import static com.vaticle.typedb.core.common.collection.Bytes.join;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
 import static com.vaticle.typedb.core.common.iterator.Iterators.link;
 import static com.vaticle.typedb.core.graph.common.Encoding.Edge.Type.OWNS;
 import static com.vaticle.typedb.core.graph.common.Encoding.Edge.Type.OWNS_KEY;
@@ -49,6 +51,7 @@ import static com.vaticle.typedb.core.graph.common.Encoding.Vertex.Type.ATTRIBUT
 import static com.vaticle.typedb.core.graph.common.Encoding.Vertex.Type.ENTITY_TYPE;
 import static com.vaticle.typedb.core.graph.common.Encoding.Vertex.Type.RELATION_TYPE;
 import static com.vaticle.typedb.core.graph.common.Encoding.Vertex.Type.ROLE_TYPE;
+import static com.vaticle.typedb.core.graph.common.StatisticsBytes.vertexCountKey;
 import static java.lang.Math.toIntExact;
 
 public abstract class TypeVertexImpl extends VertexImpl<VertexIID.Type> implements TypeVertex {

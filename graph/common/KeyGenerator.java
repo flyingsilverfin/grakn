@@ -18,7 +18,7 @@
 
 package com.vaticle.typedb.core.graph.common;
 
-import grakn.core.common.bytes.ByteArray;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
 import com.vaticle.typedb.core.common.parameters.Label;
@@ -33,15 +33,15 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.vaticle.typedb.core.common.collection.Bytes.INTEGER_SIZE;
-import static com.vaticle.typedb.core.common.collection.Bytes.LONG_SIZE;
-import static com.vaticle.typedb.core.common.collection.Bytes.bytesToInt;
-import static com.vaticle.typedb.core.common.collection.Bytes.bytesToLong;
-import static com.vaticle.typedb.core.common.collection.Bytes.intToBytes;
 import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
-import static com.vaticle.typedb.core.common.collection.Bytes.longToBytes;
 import static com.vaticle.typedb.core.common.bytes.ByteArray.slice;
-import static grakn.core.common.bytes.Bytes.longToSortedByteArray;
+import static com.vaticle.typedb.core.common.bytes.Bytes.INTEGER_SIZE;
+import static com.vaticle.typedb.core.common.bytes.Bytes.LONG_SIZE;
+import static com.vaticle.typedb.core.common.bytes.Bytes.bytesToInt;
+import static com.vaticle.typedb.core.common.bytes.Bytes.bytesToLong;
+import static com.vaticle.typedb.core.common.bytes.Bytes.intToBytes;
+import static com.vaticle.typedb.core.common.bytes.Bytes.longToBytes;
+import static com.vaticle.typedb.core.common.bytes.Bytes.longToSortedByteArray;
 import static com.vaticle.typedb.core.common.bytes.Bytes.shortToSortedByteArray;
 import static com.vaticle.typedb.core.common.bytes.Bytes.sortedByteArrayToLong;
 import static com.vaticle.typedb.core.common.bytes.Bytes.sortedByteArrayToShort;
@@ -55,6 +55,7 @@ import static com.vaticle.typedb.core.graph.common.Encoding.Vertex.Thing.RELATIO
 import static com.vaticle.typedb.core.graph.common.Encoding.Vertex.Thing.ROLE;
 import static com.vaticle.typedb.core.graph.iid.VertexIID.Thing.DEFAULT_LENGTH;
 import static com.vaticle.typedb.core.graph.iid.VertexIID.Thing.PREFIX_W_TYPE_LENGTH;
+import static java.util.Arrays.copyOfRange;
 
 public class KeyGenerator {
 
@@ -99,7 +100,7 @@ public class KeyGenerator {
             byte[] typeKeysSize = intToBytes(typeKeys.size());
             bytes.write(typeKeysSize, 0, typeKeysSize.length);
             for (Map.Entry<PrefixIID, AtomicInteger> typeKey : typeKeys.entrySet()) {
-                byte[] key = typeKey.getKey().bytes();
+                byte[] key = typeKey.getKey().byteArray().bytes();
                 bytes.write(key, 0, key.length);
                 byte[] value = intToBytes(typeKey.getValue().get());
                 bytes.write(value, 0, value.length);
@@ -191,34 +192,6 @@ public class KeyGenerator {
                 throw TypeDBException.of(MAX_INSTANCE_REACHED, typeLabel, LONG_MAX_VALUE);
             }
             return longToSortedByteArray(key);
-        }
-
-        public byte[] serialise() {
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            byte[] thingKeysSize = intToBytes(thingKeys.size());
-            bytes.write(thingKeysSize, 0, thingKeysSize.length);
-            for (Map.Entry<VertexIID.Type, AtomicLong> thingKey : thingKeys.entrySet()) {
-                byte[] key = thingKey.getKey().bytes();
-                bytes.write(key, 0, key.length);
-                byte[] value = longToBytes(thingKey.getValue().get());
-                bytes.write(value, 0, value.length);
-            }
-            return bytes.toByteArray();
-        }
-
-        public void deserialise(byte[] bytes) {
-            int pos = 0;
-            thingKeys.clear();
-            int thingKeysSize = bytesToInt(copyOfRange(bytes, pos, pos + INTEGER_SIZE));
-            pos += INTEGER_SIZE;
-            for (int i = 0; i < thingKeysSize; i++) {
-                VertexIID.Type key = VertexIID.Type.extract(bytes, pos);
-                pos += key.bytes().length;
-                AtomicLong value = new AtomicLong(bytesToLong(copyOfRange(bytes, pos, pos + LONG_SIZE)));
-                pos += LONG_SIZE;
-                thingKeys.put(key, value);
-            }
-            assert pos == bytes.length;
         }
 
         public static class Buffered extends Data {

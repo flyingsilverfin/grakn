@@ -22,6 +22,7 @@ import com.vaticle.typedb.common.collection.Collections;
 import com.vaticle.typedb.common.collection.Pair;
 import com.vaticle.typedb.common.concurrent.NamedThreadFactory;
 import com.vaticle.typedb.core.TypeDB;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.ErrorMessage;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.parameters.Arguments;
@@ -379,12 +380,12 @@ public class RocksDatabase implements TypeDB.Database {
         }
 
         private void validateModifiedKeys(RocksStorage.Data storage, RocksStorage.Data committed) {
-            NavigableSet<ByteBuffer> active = storage.modifiedKeys();
-            NavigableSet<ByteBuffer> other = committed.deletedKeys();
+            NavigableSet<ByteArray> active = storage.modifiedKeys();
+            NavigableSet<ByteArray> other = committed.deletedKeys();
             if (active.isEmpty()) return;
-            ByteBuffer currentKey = active.first();
+            ByteArray currentKey = active.first();
             while (currentKey != null) {
-                ByteBuffer otherKey = other.ceiling(currentKey);
+                ByteArray otherKey = other.ceiling(currentKey);
                 if (otherKey != null && otherKey.equals(currentKey)) {
                     if (storage.isModifiedValidatedKey(currentKey)) {
                         throw TypeDBException.of(TRANSACTION_CONSISTENCY_MODIFY_DELETE_VIOLATION);
@@ -393,7 +394,7 @@ public class RocksDatabase implements TypeDB.Database {
                     }
                 }
                 currentKey = otherKey;
-                NavigableSet<ByteBuffer> tmp = other;
+                NavigableSet<ByteArray> tmp = other;
                 other = active;
                 active = tmp;
             }

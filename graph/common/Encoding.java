@@ -20,7 +20,7 @@ package com.vaticle.typedb.core.graph.common;
 
 import com.vaticle.typedb.common.collection.Pair;
 import com.vaticle.typedb.core.common.bytes.ByteArray;
-import grakn.core.common.bytes.Bytes;
+import com.vaticle.typedb.core.common.bytes.Bytes;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.parameters.Label;
 import com.vaticle.typeql.lang.common.TypeQLArg;
@@ -40,7 +40,7 @@ import static com.vaticle.typedb.common.collection.Collections.pair;
 import static com.vaticle.typedb.common.collection.Collections.set;
 import static com.vaticle.typedb.common.util.Objects.className;
 import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
-import static grakn.core.common.bytes.Bytes.signedByte;
+import static com.vaticle.typedb.core.common.bytes.Bytes.signedByte;
 import static com.vaticle.typedb.core.common.bytes.Bytes.unsignedByte;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.ILLEGAL_CAST;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.UNRECOGNISED_VALUE;
@@ -918,7 +918,7 @@ public class Encoding {
             }
 
             public static JobType of(ByteArray key) {
-                if (key.length == 1) {
+                if (key.length() == 1) {
                     byte first = key.get(0);
                     if (first == ATTRIBUTE_VERTEX.key) return ATTRIBUTE_VERTEX;
                     else if (first == HAS_EDGE.key) return HAS_EDGE;
@@ -958,7 +958,7 @@ public class Encoding {
             }
 
             public static JobOperation of(ByteArray key) {
-                if (key.length == 1) {
+                if (key.length() == 1) {
                     byte first = key.get(0);
                     if (first == CREATED.key) return CREATED;
                     else if (first == DELETED.key) return DELETED;

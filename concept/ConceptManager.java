@@ -18,7 +18,6 @@
 
 package com.vaticle.typedb.core.concept;
 
-import grakn.core.common.bytes.ByteArray;
 import com.vaticle.typedb.common.collection.Either;
 import com.vaticle.typedb.core.common.exception.ErrorMessage;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
@@ -52,7 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static grakn.core.common.bytes.ByteArray.raw;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.ILLEGAL_STATE;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Transaction.UNSUPPORTED_OPERATION;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.TypeWrite.ATTRIBUTE_VALUE_TYPE_MISSING;

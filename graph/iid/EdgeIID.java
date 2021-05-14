@@ -18,11 +18,11 @@
 
 package com.vaticle.typedb.core.graph.iid;
 
-import grakn.core.common.bytes.ByteArray;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.graph.common.Encoding;
 
 import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
-import static grakn.core.common.bytes.ByteArray.slice;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.slice;
 
 public abstract class EdgeIID<
         EDGE_ENCODING extends Encoding.Edge,

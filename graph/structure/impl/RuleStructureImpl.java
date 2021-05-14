@@ -17,16 +17,7 @@
 
 package com.vaticle.typedb.core.graph.structure.impl;
 
-import grakn.core.common.bytes.ByteArray;
-import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
-import com.vaticle.typedb.core.common.parameters.Label;
-import com.vaticle.typedb.core.graph.TypeGraph;
-import com.vaticle.typedb.core.graph.common.Encoding;
-import com.vaticle.typedb.core.graph.iid.IndexIID;
-import com.vaticle.typedb.core.graph.iid.StructureIID;
-import com.vaticle.typedb.core.graph.structure.RuleStructure;
-import com.vaticle.typedb.core.graph.vertex.TypeVertex;
-import com.vaticle.typeql.lang.TypeQL;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typeql.lang.pattern.Conjunctable;
 import com.vaticle.typeql.lang.pattern.Conjunction;
 import com.vaticle.typeql.lang.pattern.Negation;
@@ -35,6 +26,15 @@ import com.vaticle.typeql.lang.pattern.constraint.TypeConstraint;
 import com.vaticle.typeql.lang.pattern.variable.BoundVariable;
 import com.vaticle.typeql.lang.pattern.variable.ThingVariable;
 import com.vaticle.typeql.lang.pattern.variable.Variable;
+import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
+import com.vaticle.typedb.core.common.parameters.Label;
+import com.vaticle.typedb.core.graph.TypeGraph;
+import com.vaticle.typedb.core.graph.common.Encoding;
+import com.vaticle.typedb.core.graph.iid.IndexIID;
+import com.vaticle.typedb.core.graph.iid.StructureIID;
+import com.vaticle.typedb.core.graph.structure.RuleStructure;
+import com.vaticle.typedb.core.graph.vertex.TypeVertex;
+
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -42,12 +42,14 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
-import static grakn.core.common.bytes.ByteArray.raw;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
 import static com.vaticle.typedb.core.common.iterator.Iterators.iterate;
 import static com.vaticle.typedb.core.common.iterator.Iterators.link;
 import static com.vaticle.typedb.core.graph.common.Encoding.Property.LABEL;
 import static com.vaticle.typedb.core.graph.common.Encoding.Property.THEN;
 import static com.vaticle.typedb.core.graph.common.Encoding.Property.WHEN;
+import static com.vaticle.typeql.lang.TypeQL.parsePattern;
+import static com.vaticle.typeql.lang.TypeQL.parseVariable;
 
 public abstract class RuleStructureImpl implements RuleStructure {
 
@@ -252,8 +254,8 @@ public abstract class RuleStructureImpl implements RuleStructure {
         public Persisted(TypeGraph graph, StructureIID.Rule iid) {
             super(graph, iid,
                   new String(graph.storage().get(join(iid.byteArray(), LABEL.infix().byteArray())).bytes()),
-                  TypeQL.parsePattern(new String(graph.storage().get(join(iid.byteArray(), WHEN.infix().byteArray())).bytes())).asConjunction(),
-                  TypeQL.parseVariable(new String(graph.storage().get(join(iid.byteArray(), THEN.infix().byteArray())).bytes())).asThing());
+                  parsePattern(new String(graph.storage().get(join(iid.byteArray(), WHEN.infix().byteArray())).bytes())).asConjunction(),
+                  parseVariable(new String(graph.storage().get(join(iid.byteArray(), THEN.infix().byteArray())).bytes())).asThing());
         }
 
         @Override

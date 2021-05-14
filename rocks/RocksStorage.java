@@ -18,8 +18,8 @@
 
 package com.vaticle.typedb.core.rocks;
 
-import grakn.core.common.bytes.ByteArray;
 import com.vaticle.typedb.common.collection.ConcurrentSet;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.ErrorMessage;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
@@ -37,7 +37,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.concurrent.NotThreadSafe;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.NavigableSet;
 import java.util.Optional;
@@ -51,7 +50,7 @@ import java.util.concurrent.locks.StampedLock;
 import java.util.function.BiFunction;
 
 import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
-import static grakn.core.common.bytes.Bytes.bytesHavePrefix;
+import static com.vaticle.typedb.core.common.bytes.Bytes.bytesHavePrefix;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.ILLEGAL_OPERATION;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.ILLEGAL_STATE;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.RESOURCE_CLOSED;
@@ -99,7 +98,7 @@ public abstract class RocksStorage implements Storage {
     }
 
     @Override
-    public void deleteUntracked(byte[] key) {
+    public void deleteUntracked(ByteArray key) {
         throw exception(ILLEGAL_OPERATION);
     }
 
@@ -172,7 +171,7 @@ public abstract class RocksStorage implements Storage {
             try {
                 deleteCloseSchemaWriteLock.readLock().lock();
                 if (!isOpen()) throw TypeDBException.of(RESOURCE_CLOSED);
-                return storageTransaction.get(readOptions, key);
+                return raw(storageTransaction.get(readOptions, key.bytes()));
             } catch (RocksDBException e) {
                 throw exception(e);
             } finally {
@@ -322,9 +321,9 @@ public abstract class RocksStorage implements Storage {
         private final RocksDatabase database;
         private final KeyGenerator.Data dataKeyGenerator;
 
-        private final ConcurrentNavigableMap<ByteBuffer, Boolean> modifiedKeys;
-        private final ConcurrentSkipListSet<ByteBuffer> deletedKeys;
-        private final ConcurrentSkipListSet<ByteBuffer> exclusiveInsertKeys;
+        private final ConcurrentNavigableMap<ByteArray, Boolean> modifiedKeys;
+        private final ConcurrentSkipListSet<ByteArray> deletedKeys;
+        private final ConcurrentSkipListSet<ByteArray> exclusiveInsertKeys;
         private final long snapshotStart;
         private volatile Long snapshotEnd;
 
@@ -346,7 +345,7 @@ public abstract class RocksStorage implements Storage {
         }
 
         @Override
-        public void putTracked(byte[] key) {
+        public void putTracked(ByteArray key) {
             putTracked(key, EMPTY_ARRAY);
         }
 
@@ -356,13 +355,13 @@ public abstract class RocksStorage implements Storage {
         }
 
         @Override
-        public void putTracked(byte[] key, byte[] value, boolean checkConsistency) {
-            putUntracked(key.bytes(), value.bytes());
+        public void putTracked(ByteArray key, ByteArray value, boolean checkConsistency) {
+            putUntracked(key, value);
             trackModified(key, checkConsistency);
         }
 
         @Override
-        public void putUntracked(byte[] key) {
+        public void putUntracked(ByteArray key) {
             putUntracked(key, EMPTY_ARRAY);
         }
 
@@ -381,33 +380,30 @@ public abstract class RocksStorage implements Storage {
         }
 
         @Override
-        public void deleteTracked(byte[] key) {
+        public void deleteTracked(ByteArray key) {
             deleteUntracked(key);
-            ByteBuffer bytes = ByteBuffer.wrap(key);
-            this.deletedKeys.add(bytes);
-            this.modifiedKeys.remove(bytes);
-            this.exclusiveInsertKeys.remove(bytes);
+            this.deletedKeys.add(key);
+            this.modifiedKeys.remove(key);
+            this.exclusiveInsertKeys.remove(key);
         }
 
         @Override
-        public void trackModified(byte[] key) {
+        public void trackModified(ByteArray key) {
             trackModified(key, true);
         }
 
         @Override
-        public void trackModified(byte[] key, boolean checkConsistency) {
+        public void trackModified(ByteArray key, boolean checkConsistency) {
             assert isOpen();
-            ByteBuffer bytes = ByteBuffer.wrap(key);
-            this.modifiedKeys.put(bytes, checkConsistency);
-            this.deletedKeys.remove(bytes);
+            this.modifiedKeys.put(key, checkConsistency);
+            this.deletedKeys.remove(key);
         }
 
         @Override
-        public void trackExclusiveCreate(byte[] key) {
+        public void trackExclusiveCreate(ByteArray key) {
             assert isOpen();
-            ByteBuffer bytes = ByteBuffer.wrap(key);
-            this.exclusiveInsertKeys.add(bytes);
-            this.deletedKeys.remove(bytes);
+            this.exclusiveInsertKeys.add(key);
+            this.deletedKeys.remove(key);
         }
 
         @Override
@@ -446,19 +442,19 @@ public abstract class RocksStorage implements Storage {
             return Optional.ofNullable(snapshotEnd);
         }
 
-        public NavigableSet<ByteBuffer> deletedKeys() {
+        public NavigableSet<ByteArray> deletedKeys() {
             return deletedKeys;
         }
 
-        public NavigableSet<ByteBuffer> modifiedKeys() {
+        public NavigableSet<ByteArray> modifiedKeys() {
             return modifiedKeys.keySet();
         }
 
-        public boolean isModifiedValidatedKey(ByteBuffer key) {
+        public boolean isModifiedValidatedKey(ByteArray key) {
             return modifiedKeys.getOrDefault(key, false);
         }
 
-        public NavigableSet<ByteBuffer> exclusiveInsertKeys() {
+        public NavigableSet<ByteArray> exclusiveInsertKeys() {
             return exclusiveInsertKeys;
         }
     }

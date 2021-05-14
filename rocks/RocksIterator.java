@@ -18,7 +18,7 @@
 
 package com.vaticle.typedb.core.rocks;
 
-import grakn.core.common.bytes.ByteArray;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.iterator.AbstractFunctionalIterator;
 
@@ -26,7 +26,7 @@ import java.util.NoSuchElementException;
 import java.util.function.BiFunction;
 
 import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
-import static grakn.core.common.bytes.Bytes.bytesHavePrefix;
+import static com.vaticle.typedb.core.common.bytes.Bytes.bytesHavePrefix;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.RESOURCE_CLOSED;
 
 public final class RocksIterator<T> extends AbstractFunctionalIterator<T> implements AutoCloseable {
@@ -87,7 +87,7 @@ public final class RocksIterator<T> extends AbstractFunctionalIterator<T> implem
     private synchronized boolean initialiseAndCheck() {
         if (state != State.COMPLETED) {
             this.internalRocksIterator = storage.getInternalRocksIterator();
-            this.internalRocksIterator.seek(prefix);
+            this.internalRocksIterator.seek(prefix.bytes());
             state = State.EMPTY;
             return hasValidNext();
         } else {
@@ -106,11 +106,11 @@ public final class RocksIterator<T> extends AbstractFunctionalIterator<T> implem
 
     private synchronized boolean hasValidNext() {
         byte[] key;
-        if (!internalRocksIterator.isValid() || !bytesHavePrefix(key = internalRocksIterator.key(), prefix)) {
+        if (!internalRocksIterator.isValid() || !bytesHavePrefix(key = internalRocksIterator.key(), prefix.bytes())) {
             recycle();
             return false;
         }
-        next = constructor.apply(key, internalRocksIterator.value());
+        next = constructor.apply(raw(key), raw(internalRocksIterator.value()));
         state = State.FETCHED;
         return true;
     }

@@ -18,7 +18,7 @@
 
 package com.vaticle.typedb.core.graph.common;
 
-import grakn.core.common.bytes.ByteArray;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.ErrorMessage;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
@@ -36,9 +36,9 @@ public interface Storage {
 
     ByteArray getLastKey(ByteArray prefix);
 
-    <G> FunctionalIterator<G> iterate(ByteArray key, BiFunction<byte[], byte[], G> constructor);
+    <G> FunctionalIterator<G> iterate(ByteArray key, BiFunction<ByteArray, ByteArray, G> constructor);
 
-    void deleteUntracked(byte[] key);
+    void deleteUntracked(ByteArray key);
 
     void putUntracked(ByteArray key);
 
@@ -69,21 +69,21 @@ public interface Storage {
 
         KeyGenerator.Data dataKeyGenerator();
 
-        void putTracked(byte[] key);
+        void putTracked(ByteArray key);
 
-        void putTracked(byte[] key, byte[] value);
+        void putTracked(ByteArray key, ByteArray value);
 
-        void putTracked(byte[] key, byte[] value, boolean checkConsistency);
+        void putTracked(ByteArray key, ByteArray value, boolean checkConsistency);
 
-        void deleteTracked(byte[] key);
+        void deleteTracked(ByteArray key);
 
-        void trackModified(byte[] bytes);
+        void trackModified(ByteArray bytes);
 
-        void trackModified(byte[] bytes, boolean checkConsistency);
+        void trackModified(ByteArray bytes, boolean checkConsistency);
 
-        void trackExclusiveCreate(byte[] key);
+        void trackExclusiveCreate(ByteArray key);
 
-        void mergeUntracked(byte[] key, byte[] value);
+        void mergeUntracked(ByteArray key, ByteArray value);
 
     }
 }

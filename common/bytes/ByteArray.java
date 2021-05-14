@@ -1,16 +1,36 @@
-package grakn.core.common.bytes;
+/*
+ * Copyright (C) 2021 Vaticle
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ */
 
-import grakn.core.common.exception.ErrorMessage;
-import grakn.core.common.exception.GraknException;
+package  com.vaticle.typedb.core.common.bytes;
 
+import com.vaticle.typedb.core.common.exception.TypeDBException;
+
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.ILLEGAL_STATE;
+
 // TODO: Remove bytes() -> byte[] from Encoding?
 // TODO: Add slice instance method
 // TODO: Clean up Bytes class
-public abstract class ByteArray {
+public abstract class ByteArray implements Comparable<ByteArray> {
 
     private byte[] bytesCache = null;
     private int hashCodeCache = 0;
@@ -48,6 +68,18 @@ public abstract class ByteArray {
         return Arrays.equals(bytes(), other.bytes());
     }
 
+    @Override
+    public int compareTo(ByteArray that) {
+        int n = Math.min(length(), that.length());
+        for (int i = 0; i < n; i++) {
+            int cmp = Byte.compare(this.get(i), that.get(i));
+            if (cmp != 0) return cmp;
+        }
+        if (length() == that.length()) return 0;
+        else if (length() < that.length()) return -1;
+        else return 1;
+    }
+
     public static Single raw(byte aByte) {
         return new Single(new byte[] {aByte}, 0, 1);
     }
@@ -75,7 +107,7 @@ public abstract class ByteArray {
             }
             return new Multi(newByteArrayList);
         }
-        throw GraknException.of(ErrorMessage.Internal.ILLEGAL_STATE);
+        throw TypeDBException.of(ILLEGAL_STATE);
     }
 
     public static Multi join(ByteArray... byteArrayList) {
@@ -152,7 +184,7 @@ public abstract class ByteArray {
                     i -= byteArray.length;
                 }
             }
-            throw GraknException.of(ErrorMessage.Internal.ILLEGAL_STATE);
+            throw TypeDBException.of(ILLEGAL_STATE);
         }
 
         @Override

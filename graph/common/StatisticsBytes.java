@@ -18,11 +18,11 @@
 
 package com.vaticle.typedb.core.graph.common;
 
-import grakn.core.common.bytes.ByteArray;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.graph.iid.VertexIID;
 
 import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
-import static grakn.core.common.bytes.ByteArray.raw;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
 
 public class StatisticsBytes {
     public static ByteArray vertexCountKey(VertexIID.Type typeIID) {

@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static com.vaticle.typedb.common.collection.Collections.pair;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Internal.ILLEGAL_STATE;
 import static com.vaticle.typedb.core.common.iterator.Iterators.cartesian;
 import static com.vaticle.typedb.core.common.iterator.Iterators.iterate;

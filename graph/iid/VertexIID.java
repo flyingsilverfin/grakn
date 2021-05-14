@@ -18,7 +18,7 @@
 
 package com.vaticle.typedb.core.graph.iid;
 
-import grakn.core.common.bytes.ByteArray;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.TypeDBCheckedException;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.parameters.Label;
@@ -27,7 +27,7 @@ import com.vaticle.typedb.core.graph.common.KeyGenerator;
 
 import static com.vaticle.typedb.common.util.Objects.className;
 import static com.vaticle.typedb.core.common.bytes.ByteArray.join;
-import static grakn.core.common.bytes.ByteArray.slice;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.slice;
 import static com.vaticle.typedb.core.common.bytes.Bytes.DATETIME_SIZE;
 import static com.vaticle.typedb.core.common.bytes.Bytes.DOUBLE_SIZE;
 import static com.vaticle.typedb.core.common.bytes.Bytes.LONG_SIZE;

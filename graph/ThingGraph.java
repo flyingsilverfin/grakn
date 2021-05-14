@@ -20,14 +20,13 @@ package com.vaticle.typedb.core.graph;
 
 import com.vaticle.typedb.common.collection.ConcurrentSet;
 import com.vaticle.typedb.common.collection.Pair;
-import com.vaticle.typedb.core.common.collection.Bytes;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.TypeDBCheckedException;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
 import com.vaticle.typedb.core.common.parameters.Label;
 import com.vaticle.typedb.core.graph.common.Encoding;
 import com.vaticle.typedb.core.graph.common.KeyGenerator;
-import com.vaticle.typedb.core.graph.common.StatisticsBytes;
 import com.vaticle.typedb.core.graph.common.Storage;
 import com.vaticle.typedb.core.graph.iid.EdgeIID;
 import com.vaticle.typedb.core.graph.iid.IID;
@@ -72,10 +71,9 @@ import static com.vaticle.typedb.core.graph.common.Encoding.ValueType.STRING_MAX
 import static com.vaticle.typedb.core.graph.common.Encoding.Vertex.Thing.ATTRIBUTE;
 import static com.vaticle.typedb.core.graph.common.StatisticsBytes.attributeCountJobKey;
 import static com.vaticle.typedb.core.graph.common.StatisticsBytes.attributeCountedKey;
-import static grakn.core.graph.common.StatisticsBytes.countJobKey;
+import static com.vaticle.typedb.core.graph.common.StatisticsBytes.countJobKey;
 import static com.vaticle.typedb.core.graph.common.StatisticsBytes.hasEdgeCountJobKey;
 import static com.vaticle.typedb.core.graph.common.StatisticsBytes.hasEdgeCountKey;
-import static grakn.core.graph.common.StatisticsBytes.hasEdgeCountedKey;
 import static com.vaticle.typedb.core.graph.common.StatisticsBytes.hasEdgeCountedKey;
 import static com.vaticle.typedb.core.graph.common.StatisticsBytes.hasEdgeTotalCountKey;
 import static com.vaticle.typedb.core.graph.common.StatisticsBytes.snapshotKey;
@@ -182,7 +180,7 @@ public class ThingGraph {
     }
 
     public void exclusiveOwnership(TypeVertex ownerType, AttributeVertex<?> attribute) {
-        storage.trackExclusiveCreate(Bytes.join(ownerType.iid().bytes(), attribute.iid().bytes()));
+        storage.trackExclusiveCreate(join(ownerType.iid().byteArray(), attribute.iid().byteArray()));
     }
 
     private <VALUE, ATT_IID extends VertexIID.Attribute<VALUE>, ATT_VERTEX extends AttributeVertex<VALUE>>
@@ -418,7 +416,7 @@ public class ThingGraph {
     public void setModified(IID iid) {
         assert storage.isOpen();
         if (!isModified) isModified = true;
-        storage.trackModified(iid.bytes());
+        storage.trackModified(iid.byteArray());
     }
 
     public boolean isModified() {
@@ -673,7 +671,7 @@ public class ThingGraph {
             if (isTransitive) {
                 if (isRootTypeIID(typeIID)) {
                     return persistedVertexCount.computeIfAbsent(typeIID, iid ->
-                            bytesToLongOrZero(storage.get(vertexTransitiveCountKey(typeIID))));
+                            byteArrayToLongOrZero(storage.get(vertexTransitiveCountKey(typeIID))));
                 } else {
                     if (persistedVertexTransitiveCount.containsKey(typeIID)) {
                         return persistedVertexTransitiveCount.get(typeIID);

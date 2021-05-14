@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import static com.vaticle.typedb.core.common.collection.Bytes.bytesToUUID;
+import static com.vaticle.typedb.core.common.bytes.Bytes.bytesToUUID;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.Server.BAD_VALUE_TYPE;
 import static com.vaticle.typedb.protocol.OptionsProto.Options.ExplainOptCase.EXPLAIN;
 import static com.vaticle.typedb.protocol.OptionsProto.Options.InferOptCase.INFER;

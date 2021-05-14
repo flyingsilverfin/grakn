@@ -80,12 +80,12 @@ public abstract class ThingImpl extends ConceptImpl implements Thing {
 
     @Override
     public byte[] getIID() {
-        return vertex.iid().bytes();
+        return vertex.iid().byteArray().bytes();
     }
 
     @Override
     public String getIIDForPrinting() {
-        return Bytes.bytesToHexString(vertex.iid().bytes());
+        return Bytes.bytesToHexString(vertex.iid().byteArray().bytes());
     }
 
     @Override

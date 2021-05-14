@@ -27,7 +27,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.UUID;
 
-import static grakn.core.common.bytes.ByteArray.raw;
+import static com.vaticle.typedb.core.common.bytes.ByteArray.raw;
 import static com.vaticle.typedb.core.common.exception.ErrorMessage.ThingWrite.ILLEGAL_STRING_SIZE;
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 import static java.util.Arrays.copyOfRange;
@@ -291,4 +291,5 @@ public class Bytes {
         assert value >= 0 && value <= 255;
         return (byte) (value & 0xff);
     }
+
 }

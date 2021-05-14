@@ -19,6 +19,7 @@
 package com.vaticle.typedb.core.graph;
 
 import com.vaticle.typedb.common.collection.Pair;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
 import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
 import com.vaticle.typedb.core.common.parameters.Label;
@@ -584,7 +585,7 @@ public class TypeGraph {
                     if (rules != null && rules.contains(rule)) {
                         concludesVertex.get(type).remove(rule);
                     }
-                    storage.deleteUntracked(Rule.Key.concludedVertex(type.iid(), rule.iid()).bytes());
+                    storage.deleteUntracked(Rule.Key.concludedVertex(type.iid(), rule.iid()).byteArray());
                 }
 
                 private void deleteConcludesEdgeTo(RuleStructure rule, TypeVertex type) {
@@ -592,7 +593,7 @@ public class TypeGraph {
                     if (rules != null && rules.contains(rule)) {
                         rules.remove(rule);
                     }
-                    storage.deleteUntracked(Rule.Key.concludedEdgeTo(type.iid(), rule.iid()).bytes());
+                    storage.deleteUntracked(Rule.Key.concludedEdgeTo(type.iid(), rule.iid()).byteArray());
                 }
 
                 private Set<RuleStructure> loadConcludesVertex(TypeVertex type) {

@@ -18,7 +18,7 @@
 
 package com.vaticle.typedb.core.graph.iid;
 
-import grakn.core.common.bytes.ByteArray;
+import com.vaticle.typedb.core.common.bytes.ByteArray;
 import com.vaticle.typedb.core.graph.common.Encoding;
 
 public class PrefixIID extends IID {
