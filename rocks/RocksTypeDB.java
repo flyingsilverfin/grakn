@@ -76,7 +76,7 @@ public class RocksTypeDB implements TypeDB {
                 .setLevel0FileNumCompactionTrigger(MAX_THREADS * 4)
                 .setMaxSubcompactions(MAX_THREADS)
                 .setMaxBackgroundJobs(MAX_THREADS)
-                .setUnorderedWrite(true)
+//                .setUnorderedWrite(true)
                 .setTableFormatConfig(initRocksDBTableOptions())
                 .setMergeOperator(new UInt64AddOperator());
     }
