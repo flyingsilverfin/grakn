@@ -77,6 +77,8 @@ public class RocksTypeDB implements TypeDB {
                 .setMaxSubcompactions(MAX_THREADS)
                 .setMaxBackgroundJobs(MAX_THREADS)
 //                .setUnorderedWrite(true)
+//                .setEnablePipelinedWrite(true) // TODO try this
+//                .setWriteThreadMaxYieldUsec(200) // TODO try this
                 .setTableFormatConfig(initRocksDBTableOptions())
                 .setMergeOperator(new UInt64AddOperator());
     }
