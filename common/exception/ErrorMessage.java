@@ -115,14 +115,18 @@ public abstract class ErrorMessage extends com.vaticle.typedb.common.exception.E
     }
 
     public static class Database extends ErrorMessage {
+        public static final Database DATABASE_MANAGER_CLOSED =
+                new Database(1, "Attempted to use database manager when it has been closed.");
         public static final Database DATABASE_EXISTS =
-                new Database(1, "The database with the name '%s' already exists.");
+                new Database(2, "The database with the name '%s' already exists.");
         public static final Database DATABASE_NOT_FOUND =
-                new Database(2, "The database with the name '%s' does not exist.");
+                new Database(3, "The database with the name '%s' does not exist.");
         public static final Database DATABASE_DELETED =
-                new Database(3, "Database with the name '%s' has been deleted.");
+                new Database(4, "Database with the name '%s' has been deleted.");
         public static final Database DATABASE_CLOSED =
-                new Database(4, "Attempted to open a new session from the database '%s' that has been closed.");
+                new Database(5, "Attempted to open a new session from the database '%s' that has been closed.");
+        public static final Database DATABASE_NAME_RESERVED =
+                new Database(6, "Database name must not start with an underscore.");
 
         private static final String codePrefix = "DBS";
         private static final String messagePrefix = "Invalid Database Operations";
@@ -181,6 +185,8 @@ public abstract class ErrorMessage extends com.vaticle.typedb.common.exception.E
                 new Transaction(15, "The transaction type '%s' was not recognised.");
         public static final Transaction DATA_ACQUIRE_LOCK_TIMEOUT =
                 new Transaction(16, "Could not acquire lock for data transaction. A schema session may have been left open.");
+        public static final Transaction RPC_PREFETCH_SIZE_TOO_SMALL =
+                new Transaction(17, "RPC answer streaming prefetch size must be at least 1, is set to: %d.");
 
         private static final String codePrefix = "TXN";
         private static final String messagePrefix = "Invalid Transaction Operation";

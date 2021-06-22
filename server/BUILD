@@ -59,7 +59,7 @@ native_java_libraries(
         "@vaticle_typeql_lang_java//:typeql-lang",
         "@vaticle_typeql_lang_java//query",
         "@vaticle_typeql_lang_java//common",
-        "@vaticle_typedb_protocol//grpc/java:protocol",
+        "@vaticle_typedb_protocol//grpc/java:typedb-protocol",
 
         # External dependencies from Maven
         "@maven//:com_google_code_findbugs_jsr305",
@@ -274,13 +274,13 @@ assemble_apt(
         "opt/typedb/core/server/lib/dev",
         "opt/typedb/core/server/lib/prod",
         "opt/typedb/core/server/lib/common",
-        "var/lib/typedb/db/"
+        "var/lib/typedb/core/data/"
      ],
     permissions = {
-        "var/lib/typedb/db/": "0777",
+        "var/lib/typedb/core/data/": "0777",
     },
     symlinks = {
-        "opt/typedb/core/server/data": "/var/lib/typedb/db/",
+        "opt/typedb/core/server/data": "/var/lib/typedb/core/data/",
     },
 )
 

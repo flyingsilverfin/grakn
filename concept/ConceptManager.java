@@ -22,7 +22,6 @@ import com.vaticle.typedb.common.collection.Either;
 import com.vaticle.typedb.core.common.collection.ByteArray;
 import com.vaticle.typedb.core.common.exception.ErrorMessage;
 import com.vaticle.typedb.core.common.exception.TypeDBException;
-import com.vaticle.typedb.core.common.iterator.FunctionalIterator;
 import com.vaticle.typedb.core.common.util.StringBuilders;
 import com.vaticle.typedb.core.concept.answer.ConceptMap;
 import com.vaticle.typedb.core.concept.thing.Thing;
@@ -176,14 +175,14 @@ public final class ConceptManager {
     }
 
     public Thing getThing(ByteArray iid) {
-        ThingVertex thingVertex = graphMgr.data().get(VertexIID.Thing.of(iid));
+        ThingVertex.Write thingVertex = graphMgr.data().getWritable(VertexIID.Thing.of(iid));
         if (thingVertex != null) return ThingImpl.of(thingVertex);
         else return null;
     }
 
     public void validateTypes() {
         List<TypeDBException> exceptions = graphMgr.schema().bufferedTypes().parallel()
-                .filter(Vertex::isModified)
+                .filter(TypeVertex::isModified)
                 .map(v -> TypeImpl.of(graphMgr, v).validate())
                 .collect(ArrayList::new, ArrayList::addAll, ArrayList::addAll);
         if (!exceptions.isEmpty()) throw exception(TypeDBException.of(exceptions));
