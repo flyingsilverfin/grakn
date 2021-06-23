@@ -243,10 +243,10 @@ public class ThingGraph {
     }
 
     public FunctionalIterator<ThingVertex.Write> getWritable(TypeVertex typeVertex) {
-        FunctionalIterator<ThingVertex.Write> storageIterator = storage.iterate(
-                join(typeVertex.iid().bytes(), Encoding.Edge.ISA.in().bytes()),
-                (key, value) -> convertWritable(EdgeIID.InwardsISA.of(key).end())
-        );
+        ByteArray.Base prefix = join(typeVertex.iid().bytes(), Encoding.Edge.ISA.in().bytes());
+        FunctionalIterator.Sorted<ThingVertex.Write> storageIterator = storage.iterate(
+                prefix, (key, value) -> key
+        ).mapSorted(inEdge -> convertWritable(EdgeIID.InwardsISA.of(inEdge).end()), vertex -> join(prefix, vertex.iid().bytes()));
         if (!thingsByTypeIID.containsKey(typeVertex.iid())) return storageIterator;
         else return link(thingsByTypeIID.get(typeVertex.iid()).iterator(), storageIterator).distinct();
     }

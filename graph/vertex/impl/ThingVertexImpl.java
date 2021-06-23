@@ -99,6 +99,11 @@ public abstract class ThingVertexImpl extends VertexImpl<VertexIID.Thing> implem
         throw TypeDBException.of(INVALID_THING_VERTEX_CASTING, className(ThingVertex.Read.class));
     }
 
+    @Override
+    public ByteArray getBytes() {
+        return iid.bytes();
+    }
+
     public static class Read extends ThingVertexImpl implements ThingVertex.Read {
 
         protected final ThingAdjacency.Read outs;
