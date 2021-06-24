@@ -89,6 +89,11 @@ public class Traversal {
         modifiable = true;
     }
 
+    // TODO testing
+    public Structure structure() {
+        return structure;
+    }
+
     // TODO: We should not dynamically calculate properties like this, and then guard against 'modifiable'.
     //       We should introduce a "builder pattern" to Traversal, such that users of this library will build
     //       traversals with Traversal.Builder, and call .build() in the end to produce a final Object.
