@@ -79,6 +79,7 @@ public class GraphPlanner implements Planner {
     private final Set<PlannerEdge<?, ?>> edges;
     private final AtomicBoolean isOptimising;
     private final ReadWriteLock firstOptimisingLock;
+    private final Structure structure;
 
     protected volatile GraphProcedure procedure;
     private volatile MPSolver.ResultStatus resultStatus;
@@ -91,7 +92,8 @@ public class GraphPlanner implements Planner {
     double branchingFactor;
     double costExponentUnit;
 
-    private GraphPlanner() {
+    private GraphPlanner(Structure structure) {
+        this.structure = structure;
         vertices = new HashMap<>();
         edges = new HashSet<>();
         isOptimising = new AtomicBoolean(false);
@@ -108,11 +110,7 @@ public class GraphPlanner implements Planner {
 
     static GraphPlanner create(Structure structure) {
         assert structure.vertices().size() > 1;
-        GraphPlanner planner = new GraphPlanner();
-        Set<StructureVertex<?>> registeredVertices = new HashSet<>();
-        Set<StructureEdge<?, ?>> registeredEdges = new HashSet<>();
-        structure.vertices().forEach(vertex -> planner.registerVertex(vertex, registeredVertices, registeredEdges));
-        assert planner.vertices().size() > 1 && !planner.edges().isEmpty();
+        GraphPlanner planner = new GraphPlanner(structure);
         planner.initialise();
         return planner;
     }
@@ -222,6 +220,10 @@ public class GraphPlanner implements Planner {
         parameters = new MPSolverParameters();
         parameters.setIntegerParam(PRESOLVE, PRESOLVE_ON.swigValue());
         parameters.setIntegerParam(INCREMENTALITY, INCREMENTALITY_ON.swigValue());
+        Set<StructureVertex<?>> registeredVertices = new HashSet<>();
+        Set<StructureEdge<?, ?>> registeredEdges = new HashSet<>();
+        structure.vertices().forEach(vertex -> registerVertex(vertex, registeredVertices, registeredEdges));
+        assert vertices().size() > 1 && !edges().isEmpty();
         initialiseVariables();
         initialiseConstraintsForVariables();
         initialiseConstraintsForEdges();
@@ -371,12 +373,12 @@ public class GraphPlanner implements Planner {
         end = Instant.now();
 
         isUpToDate = true;
-        if (isOptimal()) clearSolver();
+        if (isOptimal()) clearPlanner();
         totalDuration -= DEFAULT_TIME_LIMIT_MILLIS - between(start, endSolver).toMillis();
         printDebug(start, endSolver, end);
     }
 
-    private void clearSolver() {
+    private void clearPlanner() {
         this.solver.delete();
         this.parameters.delete();
         this.solver = null;
