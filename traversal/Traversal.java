@@ -101,20 +101,26 @@ public class Traversal {
         return filter;
     }
 
+    void initialise() {
+        planners = iterate(structure.asGraphs()).filter(p -> iterate(p.vertices()).anyMatch(
+                v -> v.id().isRetrievable() && filter().contains(v.id().asVariable().asRetrievable())
+        )).map(Planner::create).toList();
+    }
+
     void initialise(TraversalCache cache) {
         planners = iterate(structure.asGraphs()).filter(p -> iterate(p.vertices()).anyMatch(
                 v -> v.id().isRetrievable() && filter().contains(v.id().asVariable().asRetrievable())
         )).map(s -> cache.get(s, Planner::create)).toList();
     }
 
-    FunctionalIterator<VertexMap> iterator(GraphManager graphMgr, boolean extraPlanningTime) {
+    FunctionalIterator<VertexMap> iterator(GraphManager graphMgr) {
         assert !planners.isEmpty();
         if (planners.size() == 1) {
-            planners.get(0).tryOptimise(graphMgr, extraPlanningTime);
+            planners.get(0).tryOptimise(graphMgr);
             return planners.get(0).procedure().iterator(graphMgr, parameters, filter());
         } else {
             return cartesian(planners.parallelStream().map(planner -> {
-                planner.tryOptimise(graphMgr, extraPlanningTime);
+                planner.tryOptimise(graphMgr);
                 return planner.procedure().iterator(graphMgr, parameters, filter());
             }).collect(toList())).map(partialAnswers -> {
                 Map<Retrievable, Vertex<?, ?>> combinedAnswers = new HashMap<>();
@@ -125,15 +131,15 @@ public class Traversal {
     }
 
     FunctionalProducer<VertexMap> producer(GraphManager graphMgr, Either<Arguments.Query.Producer, Long> context,
-                                           int parallelisation, boolean extraPlanningTime) {
+                                           int parallelisation) {
         assert !planners.isEmpty();
         if (planners.size() == 1) {
-            planners.get(0).tryOptimise(graphMgr, extraPlanningTime);
+            planners.get(0).tryOptimise(graphMgr);
             return planners.get(0).procedure().producer(graphMgr, parameters, filter(), parallelisation);
         } else {
             Either<Arguments.Query.Producer, Long> nestedCtx = context.isFirst() ? context : Either.first(INCREMENTAL);
             return async(cartesian(planners.parallelStream().map(planner -> {
-                planner.tryOptimise(graphMgr, extraPlanningTime);
+                planner.tryOptimise(graphMgr);
                 return planner.procedure().producer(graphMgr, parameters, filter(), parallelisation);
             }).map(producer -> produce(producer, nestedCtx, async2())).collect(toList())).map(partialAnswers -> {
                 Map<Retrievable, Vertex<?, ?>> combinedAnswers = new HashMap<>();

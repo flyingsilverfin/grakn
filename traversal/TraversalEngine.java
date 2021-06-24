@@ -47,22 +47,18 @@ public class TraversalEngine {
 
     public FunctionalProducer<VertexMap> producer(Traversal traversal, Either<Arguments.Query.Producer, Long> context,
                                                   int parallelisation) {
-        return producer(traversal, context, parallelisation, false);
-    }
-
-    public FunctionalProducer<VertexMap> producer(Traversal traversal, Either<Arguments.Query.Producer, Long> context,
-                                                  int parallelisation, boolean extraPlanningTime) {
         traversal.initialise(cache);
-        return traversal.producer(graphMgr, context, parallelisation, extraPlanningTime);
+        return traversal.producer(graphMgr, context, parallelisation);
     }
 
     public FunctionalIterator<VertexMap> iterator(Traversal traversal) {
-        return iterator(traversal, false);
+        return iterator(traversal, true);
     }
 
-    public FunctionalIterator<VertexMap> iterator(Traversal traversal, boolean extraPlanningTime) {
-        traversal.initialise(cache);
-        return traversal.iterator(graphMgr, extraPlanningTime);
+    public FunctionalIterator<VertexMap> iterator(Traversal traversal, boolean cachePlan) {
+        if (cachePlan) traversal.initialise(cache);
+        else traversal.initialise();
+        return traversal.iterator(graphMgr);
     }
 
     public FunctionalIterator<VertexMap> iterator(GraphProcedure procedure, Traversal.Parameters params) {

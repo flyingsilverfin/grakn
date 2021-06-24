@@ -73,8 +73,8 @@ public class GraphPlanner implements Planner {
     static final double OBJECTIVE_VARIABLE_COST_MAX_CHANGE = 2.0;
     static final double OBJECTIVE_VARIABLE_TO_PLANNER_COST_MIN_CHANGE = 0.02;
 
-    private final MPSolver solver;
-    private final MPSolverParameters parameters;
+    private MPSolver solver;
+    private MPSolverParameters parameters;
     private final Map<Identifier, PlannerVertex<?>> vertices;
     private final Set<PlannerEdge<?, ?>> edges;
     private final AtomicBoolean isOptimising;
@@ -92,11 +92,6 @@ public class GraphPlanner implements Planner {
     double costExponentUnit;
 
     private GraphPlanner() {
-        solver = MPSolver.createSolver("SCIP");
-        solver.objective().setMinimization();
-        parameters = new MPSolverParameters();
-        parameters.setIntegerParam(PRESOLVE, PRESOLVE_ON.swigValue());
-        parameters.setIntegerParam(INCREMENTALITY, INCREMENTALITY_ON.swigValue());
         vertices = new HashMap<>();
         edges = new HashSet<>();
         isOptimising = new AtomicBoolean(false);
@@ -222,6 +217,11 @@ public class GraphPlanner implements Planner {
     }
 
     private void initialise() {
+        solver = MPSolver.createSolver("SCIP");
+        solver.objective().setMinimization();
+        parameters = new MPSolverParameters();
+        parameters.setIntegerParam(PRESOLVE, PRESOLVE_ON.swigValue());
+        parameters.setIntegerParam(INCREMENTALITY, INCREMENTALITY_ON.swigValue());
         initialiseVariables();
         initialiseConstraintsForVariables();
         initialiseConstraintsForEdges();
@@ -265,6 +265,7 @@ public class GraphPlanner implements Planner {
             if (totalCostNext / totalCostLastRecorded >= OBJECTIVE_PLANNER_COST_MAX_CHANGE) setOutOfDate();
             if (!isUpToDate) {
                 totalCostLastRecorded = totalCostNext;
+                if (solver == null) initialise();
                 vertices.values().forEach(PlannerVertex::recordCost);
                 edges.forEach(PlannerEdge::recordCost);
                 setInitialValues();
@@ -328,18 +329,18 @@ public class GraphPlanner implements Planner {
         solver.setHint(new MPVariable[]{}, new double[]{});
     }
 
-    void mayOptimise(GraphManager graph, boolean extraTime) {
+    void mayOptimise(GraphManager graph) {
         if (procedure == null) {
             try {
                 firstOptimisingLock.writeLock().lock();
-                if (procedure == null) optimise(graph, extraTime);
+                if (procedure == null) optimise(graph);
                 assert procedure != null;
             } finally {
                 firstOptimisingLock.writeLock().unlock();
             }
         } else if (isOptimising.compareAndSet(false, true)) {
             try {
-                optimise(graph, extraTime);
+                optimise(graph);
             } finally {
                 isOptimising.set(false);
             }
@@ -347,15 +348,14 @@ public class GraphPlanner implements Planner {
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
-    private void optimise(GraphManager graph, boolean extraTime) {
+    private void optimise(GraphManager graph) {
         updateObjective(graph);
         if (isUpToDate() && isOptimal()) {
             if (LOG.isDebugEnabled()) LOG.debug("GraphPlanner still optimal and up-to-date");
             return;
         }
 
-        // TODO: we should have a more clever logic to allocate extra time
-        long allocatedDuration = extraTime ? HIGHER_TIME_LIMIT_MILLIS : DEFAULT_TIME_LIMIT_MILLIS;
+        long allocatedDuration = DEFAULT_TIME_LIMIT_MILLIS;
         Instant start, endSolver, end;
         totalDuration += allocatedDuration;
         solver.setTimeLimit(totalDuration);
@@ -371,8 +371,18 @@ public class GraphPlanner implements Planner {
         end = Instant.now();
 
         isUpToDate = true;
-        totalDuration -= allocatedDuration - between(start, endSolver).toMillis();
+        if (isOptimal()) clearSolver();
+        totalDuration -= DEFAULT_TIME_LIMIT_MILLIS - between(start, endSolver).toMillis();
         printDebug(start, endSolver, end);
+    }
+
+    private void clearSolver() {
+        this.solver.delete();
+        this.parameters.delete();
+        this.solver = null;
+        this.parameters = null;
+        this.vertices.clear();
+        this.edges.clear();
     }
 
     private void throwPlanningError() {
